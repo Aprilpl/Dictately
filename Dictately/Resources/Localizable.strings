@@ -1,0 +1,452 @@
+/* Dictately 中文文案基线（CFBundleDevelopmentRegion = zh_CN）。
+   语气：简短、精确、工程师式的诚实（docs/product-vision.md §4 Voice & Tone）。
+   禁止：营销词、感叹号弹窗、发明不存在的功能。 */
+
+/* App 名称 */
+"app.name" = "Dictately";
+
+/* 品牌标语（Messaging Framework 定稿，勿改动措辞） */
+"app.tagline" = "说完，字就在。";
+
+/* 主窗口侧边栏（2026-10-01 对齐 v2-glass AppShell：设置内嵌主窗口，七项导航） */
+"sidebar.general" = "常规设置";
+"sidebar.models" = "听写模型";
+"sidebar.ai" = "AI 服务";
+"sidebar.prompts" = "AI提示";
+"sidebar.history" = "历史记录";
+"sidebar.hotkeys" = "快捷键";
+"sidebar.about" = "关于";
+"settings.menu.title" = "设置…";
+
+/* 历史页空状态（PRD US-006 逐字文案；搜索无结果时空状态同款） */
+"history.empty" = "还没有听写记录。按快捷键开始第一句。";
+
+/* 风格页占位（Phase 0 空壳；列表与编辑器 Phase 2 实现） */
+"styles.placeholder" = "风格功能开发中。";
+
+/* 设置窗口四 Tab（PRD §8 设置：常规/转写 API/AI 服务/快捷键） */
+"settings.general.appearance" = "外观";
+"settings.general.appearance.hint" = "切换全 App 浅色/深色主题，即时生效。";
+"settings.general.appearance.system" = "跟随系统";
+"settings.general.appearance.light" = "浅色";
+"settings.general.appearance.dark" = "深色";
+"settings.general.launchAtLogin" = "登录启动";
+"settings.general.launchAtLogin.failed" = "注册登录启动失败：请从 /Applications 或 .app 启动后再试。";
+"settings.general.launchAtLogin.approval" = "已在系统设置中注册，等待批准：系统设置 → 通用 → 登录项。";
+"settings.general.showInDock" = "在程序坞中显示";
+"settings.general.showInDock.hint" = "关闭后从状态栏图标访问 Dictately，即时生效。";
+"settings.general.showStatusBarIcon" = "在状态栏显示图标";
+"settings.general.showStatusBarIcon.hint" = "菜单栏常驻图标：开始听写、打开主窗口、退出。";
+"settings.general.microphone" = "麦克风选择";
+"settings.general.microphone.hint" = "录音输入设备；拔出后自动回退系统默认。";
+"settings.general.microphone.default" = "默认";
+"settings.general.microphone.missing" = "设备已移除";
+"settings.general.microphone.fallback" = "所选麦克风已不可用，已回退为系统默认设备。";
+"settings.general.soundEffects" = "声音效果";
+"settings.general.soundEffects.hint" = "开录前播放效果音、播完后开始录音；停录播同款（转写完成不发声）。";
+"settings.general.soundEffect" = "效果音";
+"settings.general.soundEffect.hint" = "开录与停录的提示声音，选中即试听。";
+"settings.general.escCancel" = "Esc 取消录音";
+"settings.general.escCancel.hint" = "录音与转写中按 Esc 立即取消。";
+"settings.general.muteDuringRecording" = "录音时静音";
+"settings.general.muteDuringRecording.hint" = "开始录音时静音系统声音（其他 App 与提示音），录音结束自动恢复。";
+"settings.general.title" = "常规设置";
+"settings.general.desc" = "外观、启动、录音行为与输出方式的全局偏好。";
+"settings.general.section.general" = "通用";
+"settings.general.section.permissions" = "权限";
+"settings.general.section.data" = "数据";
+"settings.general.dataFolder" = "数据文件夹";
+"settings.general.openDataFolder" = "打开数据文件夹";
+"settings.general.permission.microphone" = "麦克风";
+"settings.general.permission.microphone.hint" = "录音与语音识别所需的系统权限。";
+"settings.general.permission.microphone.denied.hint" = "已被系统拒绝，请点击「重新授权」并在系统设置中开启。";
+"settings.general.permission.accessibility" = "辅助功能";
+"settings.general.permission.accessibility.hint" = "快捷键监听所需的系统权限；授权后自动生效，无需重启。";
+"settings.general.permission.granted" = "✓ 已授权";
+"settings.general.permission.denied" = "未授权";
+"settings.general.permission.reauthorize" = "重新授权";
+"settings.general.permission.authorize" = "去授权";
+"settings.general.section.recording" = "录音";
+"settings.general.section.output" = "输出与保留";
+"settings.general.autoCopy" = "自动复制到剪贴板";
+"settings.general.autoCopy.hint" = "转写文本写入剪贴板后再粘贴。";
+"settings.general.textInputMethod" = "文本输入方法";
+"settings.general.textInputMethod.hint" = "v1 固定为剪贴板粘贴。";
+"settings.general.textInputMethod.paste" = "粘贴";
+"settings.general.maxDuration" = "录音上限";
+"settings.general.maxDuration.hint" = "单次录音达到上限自动进入转写。";
+"settings.general.retention" = "音频保留";
+"settings.general.retention.hint" = "成功条目的音频文件保留期；失败条目不受限。";
+"settings.general.retention.30" = "30 天";
+"settings.general.retention.90" = "90 天";
+"settings.general.retention.forever" = "永久";
+"settings.general.retention.days" = "%d 天";
+
+/* 状态栏菜单（TASK-076：App 常驻入口，Dock/主窗口均不可见时仍可达） */
+"statusbar.dictation.start" = "开始听写";
+"statusbar.dictation.stop" = "停止听写";
+"statusbar.openMain" = "打开主窗口";
+"statusbar.quit" = "退出 Dictately";
+/* TASK-072：快捷键页卡片化改版（页头 + 录音/风格两张分组卡，对齐 AI 服务页布局） */
+"settings.hotkey.title" = "快捷键";
+"settings.hotkey.desc" = "自定义听写触发键与风格快捷键的按键方式。";
+"settings.hotkey.section.record" = "录音快捷键";
+"settings.hotkey.section.styles" = "风格快捷键";
+"settings.hotkey.mode" = "热键模式";
+"settings.hotkey.mode.hold" = "按住";
+"settings.hotkey.mode.toggle" = "切换";
+"settings.hotkey.mode.doubleTap" = "双击";
+"settings.hotkey.mode.holdOrToggle" = "按住或切换";
+/* 2026-10-01 裁决 #12：触发键与风格组合全部可录制自定义；TASK-072：风格模式全局三选 */
+"settings.hotkey.trigger" = "录音触发键";
+"settings.hotkey.trigger.hint" = "默认右 ⌘；可改为其他修饰键（单按）或任意组合键。";
+"settings.hotkey.style.mode" = "热键模式";
+"settings.hotkey.style.mode.hint.hold" = "按住：按住组合键开始对应风格的听写，松开结束。";
+"settings.hotkey.style.mode.hint.toggle" = "切换：每按一次组合键，开始或结束对应风格的听写。";
+"settings.hotkey.style.mode.hint.doubleTap" = "双击：500 毫秒内连按两次组合键开始，再双击结束。";
+"settings.hotkey.styles.empty" = "暂无启用的风格——在「AI提示」页创建后可在此录制快捷键。";
+"settings.hotkey.unbind" = "未绑定";
+"settings.hotkey.recorder.record" = "录制";
+"settings.hotkey.recorder.change" = "修改";
+"settings.hotkey.recorder.unbind" = "解除";
+"settings.hotkey.recorder.listening" = "按下新组合…（Esc 取消）";
+"settings.hotkey.recorder.listening.trigger" = "按下组合键…；只录单个修饰键请轻点（按下再松开）";
+"settings.hotkey.recorder.cancel" = "取消";
+"settings.hotkey.recorder.need.modifier" = "需包含 ⌘/⌥/⌃ 至少一个修饰键（功能键除外）";
+"settings.hotkey.recorder.reserved" = "该键为保留键（Esc/修饰键），不能作为主键";
+"settings.hotkey.recorder.bare" = "风格快捷键不能是单独的修饰键，请加一个主键";
+"settings.hotkey.recorder.conflict.trigger" = "与录音触发键冲突，请换一个组合";
+"settings.hotkey.recorder.conflict.style" = "与风格『%@』的快捷键冲突";
+"settings.hotkey.combo.taken" = "组合 %@ 原绑定『%@』已自动解除";
+"settings.hotkey.test.title" = "测试你的快捷键";
+/* TASK-073：测试区改真听写输入框；同日追裁 placeholder 改双用法说明（聚焦直贴 / 非聚焦复制+手动粘贴） */
+"settings.hotkey.test.placeholder" = "点击该文本框聚焦后按下快捷键开始录音转写；直接按下快捷键，录音转写的文本将自动复制到剪切板，Ctrl+V粘贴到此处。";
+"settings.hotkey.test.recognized.recording" = "已识别：%@ · 听写（%@）";
+"settings.hotkey.test.recognized.style" = "已识别：%@ · %@（%@）";
+"settings.hotkey.permission.lost" = "辅助功能权限已失效，快捷键暂时不可用。";
+"settings.hotkey.permission.lost.hint" = "重新授权后无需重启 App。";
+"settings.hotkey.reauthorize" = "重新授权";
+"settings.tab.general" = "常规";
+"settings.tab.asr" = "转写 API";
+"settings.tab.llm" = "AI 服务";
+"settings.tab.hotkey" = "快捷键";
+
+/* 设置子页占位（Phase 0 各页空壳提示；Phase 1/4 逐页替换） */
+"settings.placeholder" = "此页设置将在后续版本提供。";
+
+/* 录音悬浮面板（PRD §8 屏 A / design-demos/SPEC.md §2 逐字文案，勿改动措辞） */
+"panel.status.recording" = "%@";                /* %@ = m:ss 计时，如 0:07（2026-10-01 裁决：删「录音中 ·」前缀，红点脉冲已指示录音态） */
+"panel.cueing" = "准备中";                      /* TASK-075 效果音预滚：播完即切录音态 */
+"panel.status.transcribing" = "转写中 · %@s";  /* %@ = 1.2 递增 */
+"panel.status.polishing" = "润色中 · %@s";     /* %@ = 0.8 递增 */
+"panel.esc.cancel" = "取消";                    /* 键帽 KbdKey「Esc」+ 本词 → 整体读作「Esc 取消」（v2-glass 同款，勿在文本里重复 Esc） */
+"panel.failed.retry" = "重试";
+"panel.failed.authorize" = "去授权";
+"panel.failed.close" = "关闭";
+
+/* 失败文案基线：网络超时（PRD §8 屏 A 逐字；其余错误映射 TASK-020 补全） */
+"panel.failed.timeout" = "转写失败：网络超时。录音已保存，可一键重试。";
+
+/* 录音启动失败（TASK-015 骨架占位；权限引导完整文案随 TASK-020/021 细化） */
+"panel.failed.recording" = "无法开始录音，请检查麦克风权限。";
+
+/* 转写 API 设置页（TASK-017 最小版；PRD §8 屏 D / FR-016） */
+"settings.asr.apikey" = "API Key";
+"settings.asr.apikey.placeholder" = "sk-…";
+"settings.asr.apikey.footer" = "密钥存于 Keychain，仅本地使用。";
+"settings.asr.apikey.configured" = "已配置";
+"settings.asr.model" = "模型";
+"settings.asr.model.placeholder" = "qwen-audio-3.1-asr-flash";
+"settings.asr.language" = "识别语言";
+"settings.asr.lang.zh" = "中文";
+"settings.asr.lang.en" = "英语";
+"settings.asr.lang.yue" = "粤语";
+"settings.asr.lang.ja" = "日语";
+"settings.asr.keepdialect" = "方言保留";
+"settings.asr.test.section" = "测试";
+"settings.asr.test" = "测试连接";
+"settings.asr.testing" = "测试中…";
+"settings.asr.test.success" = "连接成功 · %dms";
+"settings.asr.test.reached" = "连接成功 · 服务应答正常";
+"settings.asr.test.failed" = "连接失败：%@";
+"settings.asr.use.blocked" = "服务测试未通过，未切换";
+
+/* 全链路失败/降级文案（TASK-019；模板与 SPEC §2 逐字结构一致） */
+"panel.failed.template" = "转写失败：%@。录音已保存，可一键重试。";
+"panel.pasted.fallback" = "已复制，⌘V 手动粘贴";
+
+/* 首次运行引导（TASK-021；SPEC §2 屏 F 逐字文案，语气表 = product-vision §4） */
+"onboarding.title" = "首次运行引导";
+"onboarding.step.mic.title" = "麦克风";
+"onboarding.step.mic.text" = "需要『麦克风』权限来录制你的声音。音频仅用于你配置的转写服务。";
+"onboarding.step.mic.button" = "请求权限";
+"onboarding.step.ax.title" = "辅助功能";
+"onboarding.step.ax.text" = "需要『辅助功能』权限来监听全局快捷键。你的按键不会被记录。";
+"onboarding.step.ax.button" = "打开系统设置";
+"onboarding.step.ax.checking" = "检测中…";
+"onboarding.granted" = "✓ 已授权";
+"onboarding.start" = "开始使用";
+"onboarding.skip" = "跳过";
+
+/* ASR 设置页未完成配置提示（US-008：跳过引导后设置页醒目提示） */
+"settings.asr.incomplete" = "转写服务未配置，听写不可用。";
+
+/* 引导步骤 2 检测卡滞提示（ad-hoc 重签 + TCC 身份：勾选后常需重启进程） */
+"onboarding.step.ax.hint" = "若已在系统设置中勾选仍长时间未通过，请退出 Dictately（⌘Q）后重新打开一次。";
+
+/* AI 服务设置页（TASK-024；PRD §8 屏 D Tab 3 / FR-007；2026-10-02 两级化） */
+"settings.llm.title" = "AI 服务";
+"settings.llm.desc" = "润色与风格快捷键指令使用的 AI 服务；模型与 API Key 由你自带（BYOK），密钥存于 Keychain。";
+"settings.llm.apikey" = "API Key";
+"settings.llm.apikey.hint" = "密钥存于 Keychain，仅本地使用。点击状态配置。";
+"settings.llm.baseurl" = "Base URL";
+"settings.llm.baseurl.invalid" = "Base URL 必须以 https 开头";
+"settings.llm.baseurl.invalid.custom" = "Base URL 需以 http(s):// 开头";
+"settings.llm.baseurl.hint" = "润色服务入口。";
+"settings.llm.model" = "模型";
+"settings.llm.temperature" = "Temperature";
+
+/* AI 服务两级页（2026-10-02，定稿原型 design-demos/ai-service-providers.html） */
+"settings.llm.providers.hint" = "点击卡片配置服务商；点「使用」先测试连接，通过后切换为当前服务。各服务商的密钥与配置相互独立。";
+"settings.llm.use" = "使用";
+"settings.llm.inuse" = "✓ 使用中";
+"settings.llm.back" = "返回";
+"settings.llm.section.service" = "服务配置";
+"settings.llm.detail.hint" = "此处配置仅对 %@ 生效；保存不会切换当前服务，切换请在列表页点「使用」。";
+"settings.llm.model.custom" = "自定义模型";
+"settings.llm.model.hint" = "选择常用预设；或选「自定义模型」，在下一行填写模型 ID。";
+"settings.llm.model.custom.hint" = "填服务端支持的模型 ID。";
+"settings.llm.model.customid" = "自定义模型 ID";
+"settings.llm.model.customid.hint" = "仅当「模型」选为「自定义模型」且此处非空时，才使用该模型。";
+"settings.llm.model.customid.empty" = "已选择「自定义模型」，请填写模型 ID";
+"settings.llm.model.badge.flagship" = "旗舰";
+"settings.llm.model.badge.value" = "高性价比";
+"settings.llm.model.badge.free" = "免费";
+"settings.llm.model.badge.main" = "主力";
+"settings.llm.model.badge.lowprice" = "低价";
+"settings.llm.model.badge.recommended" = "推荐";
+
+/* AI 服务供应商目录（元数据来自 docs/LLMDocs） */
+"settings.llm.provider.openai" = "OpenAI";
+"settings.llm.provider.openai.desc" = "GPT 旗舰与性价比模型，OpenAI 官方原生 API，支持推理努力度调节。";
+"settings.llm.provider.openai.urlhint" = "OpenAI 官方端点。";
+"settings.llm.provider.zhipu" = "智谱 GLM";
+"settings.llm.provider.zhipu.desc" = "智谱 GLM 系列模型；国内 BigModel 与国际 Z.ai 双端点（Key 不互通），含免费 Flash 档。";
+"settings.llm.provider.zhipu.urlhint" = "国内 BigModel 端点；国际版改用 https://api.z.ai/api/paas/v4。";
+"settings.llm.provider.deepseek" = "DeepSeek";
+"settings.llm.provider.deepseek.desc" = "DeepSeek 官方 API；deepseek-flash 为主力模型，OpenAI 兼容协议。";
+"settings.llm.provider.deepseek.urlhint" = "OpenAI 兼容，无需 /v1 后缀。";
+"settings.llm.provider.bailian" = "QwenAI";
+"settings.llm.provider.bailian.desc" = "阿里云百炼（DashScope）：通义 Qwen 系列与第三方模型，OpenAI 兼容模式，新用户含免费额度。";
+"settings.llm.provider.bailian.urlhint" = "北京地域 OpenAI 兼容端点；新加坡地域改用 dashscope-intl 域名。";
+"settings.llm.provider.openrouter" = "OpenRouter";
+"settings.llm.provider.openrouter.desc" = "统一网关接入数百家上游模型，一个 Key 通吃，含 :free 免费档与 :nitro 加速档。";
+"settings.llm.provider.openrouter.urlhint" = "统一网关端点。";
+"settings.llm.provider.opencode" = "OpenCode";
+"settings.llm.provider.opencode.desc" = "OpenCode Go 包月订阅（默认端点，Key 为订阅 Key）与 Zen 即用即付网关，聚合 GLM / Kimi / DeepSeek 等模型。";
+"settings.llm.provider.opencode.urlhint" = "Go 包月订阅端点（默认）；Zen 即用即付改用 https://opencode.ai/zen/v1。";
+"settings.llm.provider.custom" = "自定义端点";
+"settings.llm.provider.custom.desc" = "任何 OpenAI 兼容的 /chat/completions 协议服务，自建或代理；本地服务允许 http。";
+"settings.llm.provider.custom.urlhint" = "OpenAI 兼容服务地址（通常以 /v1 结尾）；本地服务可用 http。";
+
+/* 润色失败（TASK-026；US-004：回退粘贴原文后提示，可重试润色） */
+"panel.failed.polish" = "润色失败：%@。已粘贴原文。";
+
+/* 风格列表与编辑器（TASK-028；PRD §8 屏 E / FR-010，SPEC §2 逐字文案）
+   2026-10-01 bug00008/00009 裁决：编辑页「标签」更名「描述」——UI 改绑 PRD §3
+   一直存在但从未暴露的 description 列（旧实现以 tags 顶替），列表卡副行展示描述；
+   热键显示统一「⌘ + N」（带加号）；编辑页删「启用」开关（由列表卡开关外部决定）。 */
+"styles.new" = "新建风格";
+"styles.builtin.badge" = "内置";
+"styles.delete" = "删除风格";
+"styles.delete.confirm" = "删除后历史记录保留，条目显示为已删除风格。";
+"styles.delete.confirm.ok" = "删除";
+"styles.delete.confirm.cancel" = "取消";
+"styles.editor.basic" = "基本信息";
+"styles.editor.name" = "名称";
+"styles.editor.name.empty" = "名称不能为空";
+"styles.editor.desc" = "描述";
+"styles.editor.desc.placeholder" = "一句话描述该风格的作用（可选）";
+"styles.editor.prompt" = "Prompt";
+"styles.editor.prompt.footer" = "{text} 会被替换为原始转写；缺失时原文追加在末尾。";
+"styles.editor.prompt.placeholder" = "输入 System Prompt…";
+"styles.editor.binding" = "热键";
+"styles.editor.hotkey.conflict" = "将解除『%@』的 %@ 绑定";
+"styles.editor.save" = "保存";
+"styles.editor.cancel" = "取消";
+"styles.title" = "风格";
+/* 裁决 #12：组合可自定义，提示动态列出已绑定组合 */
+"styles.hint.combo" = "口述时按 %@ 直接套用";
+"styles.hint.none" = "为风格录制快捷键后，口述时一键套用";
+"styles.unbound" = "未绑定";
+"styles.back" = "返回列表";
+"styles.editor.newTitle" = "新建风格";
+"styles.editor.title" = "编辑风格";
+"styles.editor.name.placeholder" = "给这个风格起个名字";
+
+/* 相对时间（TASK-032；SPEC §3 mock 同款格式） */
+"relative.justNow" = "刚刚";
+"relative.minutesAgo" = "%d 分钟前";
+"relative.hoursAgo" = "%d 小时前";
+"relative.yesterdayAt" = "昨天 %@";
+"relative.dayBeforeYesterdayAt" = "前天 %@";
+
+/* 历史列表（TASK-032；PRD FR-011 / §8 屏 B） */
+"history.filter.all" = "全部";
+"history.filter.dictation" = "听写";
+"history.filter.style" = "风格";
+"history.search.placeholder" = "搜索";
+"history.sort.newest" = "最新在前";
+"history.sort.oldest" = "最早在前";
+"history.status.all" = "全部状态";
+"history.status.ok" = "仅成功";
+"history.status.failed" = "仅失败";
+"history.type.dictation" = "听写";
+"history.type.style" = "风格";
+"history.copiedOnly" = "已复制";
+"history.copy" = "复制";
+"history.delete" = "删除";
+"history.select" = "多选";
+"history.select.done" = "完成";
+"history.selectAll" = "全选";
+"history.unselectAll" = "全不选";
+"history.selectedCount" = "已选 %d 条";
+"history.delete.selected" = "删除所选";
+"history.delete.selected.confirm" = "将删除 %d 条记录及对应音频文件，历史不可恢复。";
+"history.status.failed" = "失败";
+"history.loadingMore" = "加载中…";
+
+/* 条目详情（TASK-033；PRD FR-012 / §8 屏 C，SPEC §2 逐字；TASK-095 底栏裁决） */
+"detail.rawTitle" = "原始转写";
+"detail.back" = "返回列表";
+"detail.finalTitle" = "最终文本";
+"detail.delete.confirm" = "删除后音频文件同时清理，历史不可恢复。";
+"detail.delete.confirm.ok" = "删除";
+"detail.delete.confirm.cancel" = "取消";
+"detail.duration" = "时长 %@";
+"detail.copyRaw" = "复制听写内容";
+"detail.copyFinal" = "复制润色内容";
+"detail.regen" = "重新生成";
+"detail.regen.done" = "已重新生成";
+"detail.failsub.style.fallback" = "原文已回退粘贴；点「重新生成」可重跑润色。";
+"detail.failsub.style.kept" = "音频已保留；点「重新生成」可重跑润色。";
+"detail.failsub.plain.fallback" = "原文已回退粘贴；点「重新转写」可重试。";
+"detail.failsub.plain.kept" = "音频已保留；点「重新转写」可重试。";
+"detail.model.asr" = "听写";
+"detail.model.llm" = "AI提示";
+"detail.retranscribe" = "重新转写";
+"detail.retranscribe.done" = "已重新转写";
+"history.toast.retranscribe" = "重新转写中…";
+"history.toast.retranscribeFailed" = "重新转写失败";
+
+/* 动作 Toast（TASK-097 追裁：复制/重新生成等操作反馈，窗口底部居中） */
+"history.toast.copied" = "已复制";
+"history.toast.copiedRaw" = "已复制听写内容";
+"history.toast.copiedFinal" = "已复制润色内容";
+"history.toast.regen" = "重新生成中…";
+"history.toast.regenFailed" = "重新生成失败";
+
+/* 孤儿录音恢复（TASK-036；PRD §7「发现未完成录音，是否转写」） */
+"orphan.found" = "发现 %d 条未完成录音";
+"orphan.found.info" = "上次异常退出留下的录音尚未转写。现在转写并保存到历史？（不会自动粘贴）";
+"orphan.recover" = "转写";
+"orphan.skip" = "跳过";
+
+/* 关于页（2026-10-01 新增；v2-glass AboutPane 逐字文案） */
+"about.version" = "版本 %@（%@）";
+"about.macos" = "macOS 14+";
+"about.desc.line1" = "键盘优先的本地听写工具：录音即转写，润色即粘贴。";
+"about.desc.line2" = "转写引擎支持本地模型与多家 API 服务商，密钥仅存于本机 Keychain。";
+"about.checkUpdates" = "检查更新";
+"about.manual" = "用户手册";
+
+/* 听写模型设置页（2026-10-01 对齐 v2-glass SettingsModels / FR-016 完整版） */
+"models.title" = "听写模型";
+"models.desc" = "选择语音转文字引擎：本地模型离线私密，API 服务精度与热词能力更强。";
+"models.mode.local" = "本地模型";
+"models.mode.api" = "API";
+"models.local.unavailable" = "本地模型将在后续版本提供（v1 仅支持 API 服务商；引擎协议已预留，接入即用）。";
+"models.provider.qwen" = "QwenAI API";
+"models.provider.qwen.desc" = "实时流式与文件转写的高精度语音转文本 API，即时热词 / 语言提示全量支持。";
+"models.provider.openai" = "OpenAI API";
+"models.provider.openai.desc" = "gpt-4o-transcribe / whisper-1 等模型，多语言长音频表现均衡。";
+"models.provider.groq" = "Groq API";
+"models.provider.groq.desc" = "托管优化版 Whisper，转写延迟极低，按量计费。";
+"models.provider.mistral" = "Mistral API";
+"models.provider.mistral.desc" = "Voxtral 转写模型，13 种语言，支持说话人分离与时间戳，按时长计费。";
+"models.provider.custom" = "自定义端点";
+"models.provider.custom.desc" = "兼容 OpenAI /v1/audio/transcriptions 协议的自建或代理服务。";
+"models.provider.inuse" = "当前使用";
+"models.provider.keyOk" = "✓ 已配置密钥";
+"models.provider.needKey" = "需要 API Key";
+"models.provider.qwen.urlhint" = "Qwen 语音识别 API 官方域名，一般无需修改。";
+"models.provider.openai.urlhint" = "OpenAI 官方端点。";
+"models.provider.groq.urlhint" = "Groq 官方端点。";
+"models.provider.mistral.urlhint" = "Mistral 官方端点。";
+"models.provider.custom.urlhint" = "OpenAI 兼容 /audio/transcriptions 服务地址（通常以 /v1 结尾）；本地服务可用 http。";
+"models.providers.hint" = "点击卡片配置服务商；点「使用」先测试连接，通过后切换为当前听写服务。各服务商的密钥与配置相互独立。";
+"models.use" = "使用";
+"models.inuse" = "✓ 使用中";
+"models.back" = "返回";
+"models.save" = "保存";
+"models.saved" = "✓ 已保存";
+"models.section.service" = "服务配置";
+"models.section.params" = "听写参数";
+"models.detail.hint" = "此处配置仅对 %@ 生效；保存不会切换当前听写服务，切换请在列表页点「使用」。语言提示与热词参数视服务商能力生效。";
+"models.apikey" = "API Key";
+"models.apikey.hint" = "密钥存于 Keychain，仅本地使用。点击状态配置。";
+"models.key.configured" = "✓ 已配置";
+"models.key.notconfigured" = "未配置";
+"models.key.get" = "获取 API Key";
+"settings.key.edit.hint" = "点击配置 API Key";
+"settings.key.confirm" = "是否保存修改？";
+"settings.key.confirm.discard" = "放弃";
+"settings.key.toast.saved" = "API Key已更改";
+"settings.key.toast.unsaved" = "API Key未更改";
+"models.model" = "模型名";
+"models.model.custom.hint" = "填服务端支持的模型名，留空则用请求体默认值。";
+"models.model.title" = "模型";
+"models.model.hint" = "选择常用预设；或选「自定义模型」，在下一行填写模型 ID。";
+"models.model.custom" = "自定义模型";
+"models.model.customid" = "自定义模型 ID";
+"models.model.customid.hint" = "仅当「模型」选为「自定义模型」且此处非空时，才使用该模型。";
+"models.model.customid.empty" = "已选择「自定义模型」，请填写模型 ID";
+"models.baseurl.invalid" = "Base URL 必须以 https 开头";
+"models.baseurl.invalid.custom" = "Base URL 必须以 http(s) 开头";
+"models.langs" = "语言提示";
+"models.langs.hint.qwen" = "最多 4 个，按选中顺序作为提示词传入。";
+"models.langs.hint.compat" = "以 prompt 前缀传入，效果因模型而异。";
+"models.hotwords" = "即时热词";
+"models.hotwords.hint" = "转写时优先匹配，权重 1–5。";
+"models.hotwords.col.word" = "词";
+"models.hotwords.col.weight" = "权重";
+"models.hotwords.add" = "+ 添加热词";
+"models.hotwords.placeholder" = "输入词";
+"models.hotwords.limit" = "最多 50 条。";
+"models.dialect" = "方言保留";
+"models.caps.none" = "当前服务商不支持即时热词与方言保留，这些设置仅在支持的服务商（如阿里云 Qwen）下可用。";
+
+/* AI 服务设置页（2026-10-01 对齐 v2-glass SettingsAI） */
+"settings.llm.section.params" = "MODEL PARAMETERS";
+"settings.llm.reasoning" = "推理思考";
+"settings.llm.reasoning.hint" = "默认关闭；开启后使用各家最低思考档。";
+"settings.llm.reasoning.hint.zhipu" = "GLM-5.3 系模型思考常开，无法关闭；开启即最低档。";
+"settings.llm.reasoning.hint.opencode" = "当前端点未定义思考参数，此设置不生效。";
+"settings.llm.reasoning.hint.locked" = "此模型思考模式仅支持流式调用，暂不可开启。";
+"settings.llm.reasoning.off" = "关闭";
+"settings.llm.reasoning.low" = "低";
+"settings.llm.temperature.hint" = "控制随机性，仅限 BYOK（0–1）。";
+"settings.llm.temperature.default" = "0.7";
+"settings.llm.temperature.invalid" = "需为 0–1";
+"settings.llm.save" = "保存";
+"settings.llm.saved" = "✓ 已保存";
+
+/* 历史行状态（2026-10-01 对齐 v2-glass HistoryPane chips） */
+"history.failedSummary" = "转写失败：%@";
+"history.fallbackPasted" = "已回退粘贴原文";
+"history.audioKept" = "音频已保留";
+
+/* 快捷键页（模式说明随档位切换 + 互斥内联提示） */
+"settings.hotkey.mode.hint.hold" = "按住：按住触发键说话，松开结束听写。";
+"settings.hotkey.mode.hint.toggle" = "切换：按一次开始，再按一次结束。";
+"settings.hotkey.mode.hint.doubleTap" = "双击：双击触发键开始并结束一段听写。";

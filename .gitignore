@@ -1,0 +1,49 @@
+# ===== macOS =====
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# ===== Xcode（防御性：CLT-only 路线不产生任何 Xcode 工件，防误入库）=====
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.moved-aside
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ===== Swift Package Manager =====
+# .build/ 为本地构建缓存，不入库；Package.resolved 入库锁定 GRDB 版本（应用包需可复现构建）
+.build/
+
+# ===== 本地笔记 / 临时 =====
+*.log
+.tmp/
+
+# 嵌套 git 仓库（克隆的参考示例，保留在磁盘不入库）
+.tools/
+
+# ZCode agent 本地会话目录
+.zcode/
+
+# ZCode agent 本地配置
+.zcodeignore
+
+# 拼装的 .app 产物（scripts/build.sh 输出）
+build/
+
+# DMG 打包产物（scripts/package-dmg.sh 输出）
+dist/
+
+# ===== 开源分发边界（2026-10-06：以下内容保留在本地磁盘，不进入公开仓库）=====
+# 内部文档：设计原型 / 研究笔记 / 截图留档
+docs/
+# 私有测试套件（Package.swift 的 testTarget 仍指向此目录，本地 swift test 不受影响）
+DictatelyTests/
+# 项目裁决与硬约束（跨会话 agent 工作指令，非公开文档）
+AGENTS.md
+# 开发机清理脚本（面向本机钥匙串/证书/TCC/LS 全量清理，对终端用户无用途；磁盘保留）
+scripts/uninstall.sh
