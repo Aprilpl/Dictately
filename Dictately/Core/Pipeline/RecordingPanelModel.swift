@@ -156,4 +156,11 @@ final class RecordingPanelModel {
         phaseStartedAt = nil
         return true
     }
+
+    /// 处理段（转写/润色）入口快照 Esc 提示开关（TASK-130）：retry 链路从 idle 直入
+    /// 处理段、无 enterCueing/enterRecording 的快照点——hint 不得残留上轮值或默认值。
+    /// （enterTranscribing/enterPolishing 不改写本字段，录音段快照得以沿用。）
+    func snapshotEscHint(_ visible: Bool) {
+        escHintVisible = visible
+    }
 }

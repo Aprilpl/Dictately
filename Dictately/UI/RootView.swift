@@ -6,10 +6,11 @@ import SwiftUI
 /// 视觉（TASK-038，v2-glass 转录）：整窗毛玻璃底（GlassBackground），
 /// 侧栏 sideBg + 右缘 line 分隔；内容区透明叠于玻璃之上。
 struct RootView: View {
-    /// 侧边栏七页（顺序即原型 AppShell 顺序）。String raw value 供 TASK-078
-    /// 页记忆持久化（AppSettings.sidebarLastPage 存 rawValue）。
+    /// 侧边栏八页（顺序即原型 AppShell 顺序；usage = TASK-133 使用统计，快捷键与
+    /// 关于之间）。String raw value 供 TASK-078 页记忆持久化（AppSettings.sidebarLastPage
+    /// 存 rawValue；新增 case 与旧存档 rawValue 天然兼容）。
     enum Page: String, Hashable {
-        case general, models, ai, prompts, history, hotkeys, about
+        case general, models, ai, prompts, history, hotkeys, usage, about
     }
 
     // 无记忆值/非法存档的回退默认（2026-10-06 用户裁决：首装落在常规设置；
@@ -79,6 +80,7 @@ struct RootView: View {
         case "ai": selection = .ai
         case "prompts": selection = .prompts
         case "hotkeys": selection = .hotkeys
+        case "stats": selection = .usage
         case "about": selection = .about
         default: break // history = 默认
         }
@@ -94,6 +96,7 @@ struct RootView: View {
         case .prompts: StyleListView()
         case .history: HistoryView()
         case .hotkeys: HotkeySettingsView()
+        case .usage: UsageStatsView()
         case .about: AboutView()
         }
     }

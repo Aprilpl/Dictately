@@ -337,6 +337,15 @@ struct ASRProviderDetailView: View {
             onCommit: commitAPIKey)
     }
 
+    /// 模型字段 placeholder（TASK-128 追裁：按家区分——四家有预设的供应商显各自
+    /// 默认模型 ID，不再全站共用同一个 qwen 家 ID；custom 端点无已知各家模型，
+    /// 回落通用文案键。与 LLM 页 modelIDPlaceholder 同构）。
+    private var modelIDPlaceholder: LocalizedStringKey {
+        provider.defaultModel.isEmpty
+            ? "models.model.id.placeholder"
+            : LocalizedStringKey(provider.defaultModel)
+    }
+
     /// 模型行（TASK-098 分离交互；行标题/hint/placeholder 为本页文案——custom 端点
     /// 「模型名」沿用旧文案，与 LLM 页「模型」有知情差异勿统一）。
     private var modelRow: some View {
@@ -344,7 +353,7 @@ struct ASRProviderDetailView: View {
             presets: provider.modelPresets,
             customTitle: String(localized: "models.model"),
             customHint: String(localized: "models.model.custom.hint"),
-            customPlaceholder: "my-asr / large-v3",
+            customPlaceholder: modelIDPlaceholder,
             presetTitle: String(localized: "models.model.title"),
             presetHint: String(localized: "models.model.hint"),
             customOptionText: String(localized: "models.model.custom"),
@@ -359,7 +368,7 @@ struct ASRProviderDetailView: View {
             title: String(localized: "models.model.customid"),
             hint: String(localized: "models.model.customid.hint"),
             emptyKey: "models.model.customid.empty",
-            placeholder: "fun-asr-flash-2026-06-15",
+            placeholder: modelIDPlaceholder,
             modelOK: modelOK,
             usesCustomModel: usesCustomModel,
             customModelInput: $customModelInput)

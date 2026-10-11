@@ -152,14 +152,15 @@ extension AppSettings.LLMProvider {
     }
 
     /// 新装默认模型（custom 空；须属于 modelPresets 之一，便于下拉回显选中项）。
+    /// 2026-10-10 用户裁决（TASK-128）：六家各用自家默认，不再沿用首个预设。
     var defaultModel: String {
         switch self {
         case .openai: return "gpt-6-luna"
-        case .zhipu: return "glm-4.7-flash"
+        case .zhipu: return "glm-5.3-flash"
         case .deepseek: return "deepseek-flash"
         case .bailian: return "qwen3.8-flash"
-        case .openrouter: return "deepseek/deepseek-chat"
-        case .opencode: return "glm-5.3-flash"
+        case .openrouter: return "openai/gpt-5.2"
+        case .opencode: return "mimo-v2.6-flash"
         case .custom: return ""
         }
     }

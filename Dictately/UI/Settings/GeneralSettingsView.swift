@@ -27,6 +27,8 @@ struct GeneralSettingsView: View {
     @State private var micDeviceUID = ""
     @State private var retentionDays = 30
     @State private var maxDuration = 240
+    /// 文本输入方法本地镜像（bug00013 规则；TASK-126 起为真下拉）。
+    @State private var textInputMethod = TextInputMethod.paste
 
     /// 效果音选择本地镜像（bug00013 规则：Menu label 直读 settings 不刷新）。
     @State private var soundEffect: EffectSound = .defaultSound
@@ -115,13 +117,15 @@ struct GeneralSettingsView: View {
                 sectionLabel("settings.general.section.output", topPadding: 36)
 
                 SettingsCard {
+                    // TASK-126：自动复制锁定常开——粘贴/模拟按键的输出链路都依赖剪贴板
+                    // （模拟按键模式也写入，用户裁决），关掉只会造成「粘贴出旧内容」的静默
+                    // 故障，故展示但不可关闭。
                     SettingRow("settings.general.autoCopy", hint: "settings.general.autoCopy.hint") {
-                        valueColumn(GlassToggle(isOn: boolBinding(\.autoCopyClipboard)))
+                        valueColumn(GlassToggle(isOn: .constant(true), disabled: true))
                     }
-                    // FR-015 只读展示项（v1 固定粘贴）
+                    // TASK-126：文本输入方法改为真下拉（粘贴×4 键位布局 + 模拟按键）
                     SettingRow("settings.general.textInputMethod", hint: "settings.general.textInputMethod.hint") {
-                        valueColumn(
-                            Chip(text: String(localized: "settings.general.textInputMethod.paste"), tone: .neutral))
+                        valueColumn(textInputMethodMenu)
                     }
                     SettingRow("settings.general.retention", hint: "settings.general.retention.hint", divider: false) {
                         valueColumn(retentionMenu)
@@ -160,6 +164,14 @@ struct GeneralSettingsView: View {
                 sectionLabel("settings.general.section.data", topPadding: 36)
 
                 SettingsCard {
+                    // 请求日志（2026-10-10 用户裁决，默认开）：开关即时生效（RequestLog
+                    // 每次写入现读设置）；hint 向用户明示日志含口述文本、Key 恒脱敏。
+                    SettingRow(
+                        title: String(localized: "settings.general.requestLog"),
+                        hint: String(localized: "settings.general.requestLog.hint")
+                    ) {
+                        valueColumn(GlassToggle(isOn: boolBinding(\.requestLogEnabled)))
+                    }
                     SettingRow(
                         title: String(localized: "settings.general.dataFolder"),
                         hint: AppDatabase.defaultPath().deletingLastPathComponent().path,
@@ -191,6 +203,7 @@ struct GeneralSettingsView: View {
             micDeviceUID = environment.settings.micDeviceUID
             retentionDays = environment.settings.audioRetentionDays
             maxDuration = environment.settings.maxRecordingSeconds
+            textInputMethod = environment.settings.textInputMethod
             soundEffect = environment.settings.soundEffect
             syncLaunchAtLoginFromSystem()
             environment.permissions.refresh() // 权限卡即时反映当前状态
@@ -546,6 +559,42 @@ struct GeneralSettingsView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+    }
+
+    /// 文本输入方法（TASK-126）：粘贴×4 键位布局 + 模拟按键，retentionMenu 同款配方。
+    private var textInputMethodMenu: some View {
+        Menu {
+            ForEach(TextInputMethod.allCases, id: \.self) { method in
+                Button(textInputMethodLabel(method)) {
+                    textInputMethod = method
+                    environment.settings.textInputMethod = method
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(textInputMethodLabel(textInputMethod))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.text1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(width: 150, alignment: .leading)
+            .background(FieldBackground())
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+    }
+
+    private func textInputMethodLabel(_ method: TextInputMethod) -> String {
+        switch method {
+        case .paste: return String(localized: "settings.general.textInputMethod.paste")
+        case .pasteColemak: return String(localized: "settings.general.textInputMethod.paste.colemak")
+        case .pasteDvorak: return String(localized: "settings.general.textInputMethod.paste.dvorak")
+        case .pasteOptimot: return String(localized: "settings.general.textInputMethod.paste.optimot")
+        case .simulateTyping: return String(localized: "settings.general.textInputMethod.simulate")
+        }
     }
 
     private func retentionLabel(_ days: Int) -> String {

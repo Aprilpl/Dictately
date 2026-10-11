@@ -38,6 +38,9 @@ build/
 # DMG 打包产物（scripts/package-dmg.sh 输出）
 dist/
 
+# 开发过程截图留档（与 docs/img-report/ 同性质）
+img-report/
+
 # ===== 开源分发边界（2026-10-06：以下内容保留在本地磁盘，不进入公开仓库）=====
 # 内部文档：设计原型 / 研究笔记 / 截图留档
 docs/

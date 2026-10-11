@@ -9,6 +9,9 @@ import SwiftUI
 /// 风格 = 「复制听写内容 / 复制润色内容 / 重新生成」（重新生成 = 对听写文字重跑
 /// LLM 润色后原地渲染）；「重试 / 重试并复制 / 删除」从详情页退役——删除路径 =
 /// 列表行悬停 + 多选批量，失败条目不再有重跑转写（ASR）入口（用户知情裁决）。
+/// TASK-132（2026-10-10）：风格条目 rawText 为空（转写阶段被 Esc 取消 / ASR 失败，
+/// 音频保留）时「重新生成」改走 .copyOnly 全链路（音频→转写→润色）——补上 §25
+/// 追裁五登记的「风格条目 ASR 段失败无重跑入口」死胡同；cancelled 条目加引导横幅。
 struct EntryDetailView: View {
     let entry: Entry
     let onClose: () -> Void
@@ -34,6 +37,9 @@ struct EntryDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     if entry.status == .failed {
                         failureBanner
+                    }
+                    if entry.status == .cancelled {
+                        cancelledBanner
                     }
                     metadata
                     textSections
@@ -72,7 +78,9 @@ struct EntryDetailView: View {
                         .buttonStyle(.themeGhost)
                     Button("detail.regen") { regen() }
                         .buttonStyle(.themeGhost)
-                        .disabled(isRetrying || (entry.rawText ?? "").isEmpty)
+                        // TASK-132：rawText 空但音频在 → 可走全链路重跑（regenMode 非 nil 即启用）；
+                        // rawText 与音频都缺 → 无事可做才禁用
+                        .disabled(isRetrying || Self.regenMode(rawText: entry.rawText, hasAudio: audioURL != nil) == nil)
                 } else {
                     Button("history.copy") { copyFinal() }
                         .buttonStyle(.themeGhost)
@@ -103,8 +111,13 @@ struct EntryDetailView: View {
     }
 
     /// 失败副文案：风格条目引导「重新生成」；听写仅陈述状态（无重试入口，裁决后语义）。
+    /// TASK-132：风格 + rawText 空（ASR 段失败）时「重新生成」实为全链路重跑——
+    /// 副文案相应说明「重跑转写与润色」，不再误导为仅润色。
     private var failureSubTitle: String {
         if entry.type == .style {
+            if (entry.rawText ?? "").isEmpty {
+                return String(localized: "detail.failsub.style.full")
+            }
             return entry.pasted
                 ? String(localized: "detail.failsub.style.fallback")
                 : String(localized: "detail.failsub.style.kept")
@@ -112,6 +125,27 @@ struct EntryDetailView: View {
         return entry.pasted
             ? String(localized: "detail.failsub.plain.fallback")
             : String(localized: "detail.failsub.plain.kept")
+    }
+
+    /// 取消条目引导横幅（TASK-132，TASK-130 cancelled 条目的出口指引）：
+    /// 按数据可操作性分流副文案——能重跑的指路（重新生成/重新转写），不能的陈述原因。
+    private var cancelledBanner: some View {
+        NoticeBanner(
+            title: String(localized: "detail.cancelled.title"),
+            subtitle: cancelledSubTitle,
+            tone: .warn)
+    }
+
+    private var cancelledSubTitle: String {
+        let hasAudio = audioURL != nil
+        let hasRaw = !(entry.rawText ?? "").isEmpty
+        if entry.type == .style {
+            if hasRaw { return String(localized: "detail.cancelled.sub.styleRaw") }
+            if hasAudio { return String(localized: "detail.cancelled.sub.styleAudio") }
+        } else if hasAudio {
+            return String(localized: "detail.cancelled.sub.dictationAudio")
+        }
+        return String(localized: "detail.cancelled.sub.noAudio")
     }
 
     // MARK: - 元数据（TASK-099 追裁二：三行制——①时间+时长 ②听写模型+ASR 耗时
@@ -256,12 +290,16 @@ struct EntryDetailView: View {
 
     /// 重新生成（2026-10-03 裁决）：对听写文字重跑 LLM 润色（polishOnly 既有链路）
     /// → 落库 → 列表与详情原地刷新；进度与完成反馈走 Toast（TASK-097）。
+    /// TASK-132：rawText 为空（转写阶段被 Esc 取消 / ASR 失败，音频保留）时改走
+    /// .copyOnly 全链路——音频→转写→润色→原地更新（不粘贴），把音频丢给转写补回
+    /// rawText 再润色；进度 Toast 文案两路径复用（完成真伪按落库最新状态判定）。
     private func regen() {
-        guard !isRetrying else { return }
+        guard !isRetrying,
+              let mode = Self.regenMode(rawText: entry.rawText, hasAudio: audioURL != nil) else { return }
         isRetrying = true
         environment.toast.show(String(localized: "history.toast.regen"), info: true)
         let entryID = entry.id ?? -1
-        environment.pipeline.retryEntry(id: entryID, mode: .polishOnly) { [weak environment] in
+        environment.pipeline.retryEntry(id: entryID, mode: mode) { [weak environment] in
             isRetrying = false
             // 完成真伪按落库最新状态判定（TASK-098：门禁短路/LLM 失败都不得弹成功文案）
             var latest: Entry?
@@ -273,5 +311,19 @@ struct EntryDetailView: View {
             }
             onChanged()
         }
+    }
+
+    // MARK: - 纯逻辑（可直接单测，仿 ProviderSettingsSupport.menuLabel 先例）
+
+    /// 重新生成模式分流（TASK-132 用户裁决）：
+    /// - rawText 空且音频在 → `.copyOnly`（全链路：音频→ASR 转写→LLM 润色，
+    ///   管道对 style 条目天然支持，不粘贴只复制）；
+    /// - rawText 非空 → `.polishOnly`（仅重跑润色，既有逻辑，音频无关）；
+    /// - rawText 空且音频缺失 → nil（无事可做，按钮禁用）。
+    static func regenMode(rawText: String?, hasAudio: Bool) -> EntryRetryMode? {
+        if let rawText, !rawText.isEmpty {
+            return .polishOnly
+        }
+        return hasAudio ? .copyOnly : nil
     }
 }

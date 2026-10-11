@@ -34,6 +34,9 @@ final class AppEnvironment {
     let asrEngine: ASREngine
     /// LLM 引擎（TASK-023）：OpenAI 兼容客户端（润色/测试连接）。
     let llmEngine: OpenAICompatibleClient
+    /// 请求日志（2026-10-10 用户裁决）：ASR/LLM 全部外发请求参数落盘数据目录
+    /// request-log.jsonl（API Key 恒脱敏、音频只记元数据、5MB 轮转、设置页开关）。
+    let requestLog: RequestLog
     /// 共享剪贴板服务（Pipeline 输出 + 历史/详情「复制」）。
     let clipboard = ClipboardService()
     /// 主窗口路由（TASK-076）：⌘, / 状态栏菜单统一入口，主窗口关闭后仍能重开。
@@ -93,9 +96,15 @@ final class AppEnvironment {
             makeFileURL: { store.makeRecordingURL() }
         )
 
+        // 请求日志先于引擎初始化（三客户端注入共用）；enabled 每次写入现读——
+        // 设置页开关即时生效，沿 SoundFeedback.isEnabled 先例
+        let requestLog = RequestLog(enabled: { [weak settings] in settings?.requestLogEnabled ?? true })
+        self.requestLog = requestLog
         // ASR 引擎先于 pipeline 初始化（全链路服务引用它）
-        self.asrEngine = RoutingASREngine()
-        self.llmEngine = OpenAICompatibleClient()
+        self.asrEngine = RoutingASREngine(
+            qwen: QwenASRClient(requestLog: requestLog),
+            compatible: OpenAICompatibleASRClient(requestLog: requestLog))
+        self.llmEngine = OpenAICompatibleClient(requestLog: requestLog)
 
         let panelModel = self.panelModel
         self.panelController = RecordingPanelController(model: panelModel)
@@ -197,12 +206,14 @@ final class AppEnvironment {
     }
 
     /// SecretStore 生产装配（TASK-048）：统一包 `CachingSecretStore`——每账户每进程
-    /// 至多一次底层读（AGENTS.md 硬约束 #1）。Debug 裸跑旁路：`DICTATELY_DEV_SECRETS=1`
+    /// 至多一次底层读（AGENTS.md 硬约束 #1）。Debug 旁路：环境变量
+    /// `DICTATELY_DEV_SECRETS=1`（裸跑终端）**或** defaults 开关 `devSecretsBypass`
+    /// （打包 App 经 Finder/`open` 启动拿不到环境变量——TASK-131 开发期零弹框通路）
     /// 时走 `FileSecretStore`（明文 0600，仅开发自用）；Release 恒 Keychain（硬约束 #2）。
     static func makeDefaultSecretStore() -> SecretStore {
         #if DEBUG
         if Self.isDevSecretsBypassEnabled, let file = try? FileSecretStore() {
-            AppLog.pipeline.notice("dev secrets bypass active (FileSecretStore, DICTATELY_DEV_SECRETS=1)")
+            AppLog.pipeline.notice("dev secrets bypass active (FileSecretStore, env or defaults flag)")
             return CachingSecretStore(underlying: file)
         }
         #endif
@@ -226,8 +237,15 @@ final class AppEnvironment {
 
     #if DEBUG
     /// Debug 旁路开关判定（TASK-048 层 C；静态属性便于单测 setenv/unsetenv）。
+    /// 双通道（TASK-131）：环境变量（裸跑终端启动）或 defaults 持久开关（打包 App
+    /// 经 Finder/`open` 启动——开发期只跑 build/Dictately.app 的钥匙串零弹框通路，
+    /// 经 `defaults write com.dictately.Dictately devSecretsBypass -bool true` 开启）。
+    /// Release 二进制不含本判定（#if DEBUG，硬约束 #2 编译门控不变）。
+    static let devSecretsBypassDefaultsKey = "devSecretsBypass"
+
     static var isDevSecretsBypassEnabled: Bool {
         ProcessInfo.processInfo.environment["DICTATELY_DEV_SECRETS"] == "1"
+            || UserDefaults.standard.bool(forKey: devSecretsBypassDefaultsKey)
     }
     #endif
 

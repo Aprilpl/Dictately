@@ -161,6 +161,18 @@ final class EntryRepository {
         }
     }
 
+    /// 区间全量读取（使用统计页入口，TASK-133）：cutoff 非 nil 时只取
+    /// created_at >= cutoff（边界含入；nil = 全部，直通 fetchAll）。
+    func fetchAll(since cutoff: TimeInterval?) throws -> [Entry] {
+        guard let cutoff else { return try fetchAll() }
+        return try database.dbQueue.read { db in
+            try Entry
+                .filter(Column("created_at") >= cutoff)
+                .order(Column("created_at").desc, Column("id").desc)
+                .fetchAll(db)
+        }
+    }
+
     /// 按 id 取单条（重试链路更新前先取原值）。
     func fetch(id: Int64) throws -> Entry? {
         try database.dbQueue.read { db in

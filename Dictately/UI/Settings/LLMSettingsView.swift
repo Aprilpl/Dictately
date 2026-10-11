@@ -270,13 +270,22 @@ struct LLMProviderDetailView: View {
             onCommit: commitAPIKey)
     }
 
+    /// 模型字段 placeholder（TASK-128 用户裁决：按家区分——六家有预设的供应商
+    /// 显各自默认模型 ID，不再全站共用同一个 GLM ID；custom 端点无已知各家
+    /// 模型，回落通用文案键）。
+    private var modelIDPlaceholder: LocalizedStringKey {
+        provider.defaultModel.isEmpty
+            ? "settings.llm.model.id.placeholder"
+            : LocalizedStringKey(provider.defaultModel)
+    }
+
     /// 模型行（TASK-096 分离交互；行标题/hint/placeholder 为本页文案键）。
     private var modelRow: some View {
         ProviderModelRow(
             presets: provider.modelPresets,
             customTitle: String(localized: "settings.llm.model"),
             customHint: String(localized: "settings.llm.model.custom.hint"),
-            customPlaceholder: "glm-4.7-flash",
+            customPlaceholder: modelIDPlaceholder,
             presetTitle: String(localized: "settings.llm.model"),
             presetHint: String(localized: "settings.llm.model.hint"),
             customOptionText: String(localized: "settings.llm.model.custom"),
@@ -291,7 +300,7 @@ struct LLMProviderDetailView: View {
             title: String(localized: "settings.llm.model.customid"),
             hint: String(localized: "settings.llm.model.customid.hint"),
             emptyKey: "settings.llm.model.customid.empty",
-            placeholder: "glm-4.7-flash",
+            placeholder: modelIDPlaceholder,
             modelOK: modelOK,
             usesCustomModel: usesCustomModel,
             customModelInput: $customModelInput)

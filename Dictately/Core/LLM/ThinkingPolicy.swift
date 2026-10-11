@@ -48,10 +48,11 @@ enum ThinkingPolicy {
         let m = model.lowercased()
         switch provider {
         case .deepseek:
-            // 官方端点思考为显式开启（默认真关闭）；开启 = thinking.enabled + low。
+            // 关闭也显式发 thinking.disabled（2026-10-10 用户裁决，覆盖 2026-10-04 的
+            // 「官方端点省略=真关闭」；disabled 形态已经实机探针 200 验证）。
             return effortLow
                 ? ThinkingParams(reasoning_effort: "low", thinkingType: "enabled")
-                : ThinkingParams()
+                : ThinkingParams(thinkingType: "disabled")
         case .bailian:
             if m.contains("deepseek") {
                 // V4 系托管版默认开思考且非流式必须显式关；「开启」结构性不可用

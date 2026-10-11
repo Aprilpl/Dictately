@@ -8,15 +8,70 @@
 /* 品牌标语（Messaging Framework 定稿，勿改动措辞） */
 "app.tagline" = "说完，字就在。";
 
-/* 主窗口侧边栏（2026-10-01 对齐 v2-glass AppShell：设置内嵌主窗口，七项导航） */
+/* 主窗口侧边栏（2026-10-01 对齐 v2-glass AppShell：设置内嵌主窗口；TASK-133 增第八项使用统计） */
 "sidebar.general" = "常规设置";
 "sidebar.models" = "听写模型";
 "sidebar.ai" = "AI 服务";
 "sidebar.prompts" = "AI提示";
 "sidebar.history" = "历史记录";
 "sidebar.hotkeys" = "快捷键";
+"sidebar.usage" = "使用统计";
 "sidebar.about" = "关于";
 "settings.menu.title" = "设置…";
+
+/* 使用统计页（TASK-133，原型 docs/design-demos/usage-stats.html 定稿） */
+"usage.title" = "使用统计";
+"usage.desc" = "你在各时段的听写量、产出与用法分布；数据实时计算自本机历史记录，不出设备。";
+"usage.loadFailed" = "读取历史记录失败，请重新进入本页。";
+"usage.tab.today" = "今天";
+"usage.tab.week" = "7 天";
+"usage.tab.month" = "30 天";
+"usage.tab.all" = "全部";
+"usage.hero.chars" = "总字数";
+"usage.hero.duration" = "录音总时长";
+"usage.hero.entries" = "语音条数";
+"usage.hero.speed" = "平均口述速度";
+"usage.unit.chars" = "字";
+"usage.unit.ms" = "分:秒";
+"usage.unit.times" = "次";
+"usage.unit.cpm" = "字/分";
+"usage.saved.prefix" = "这个时段省下";
+"usage.saved.detail" = "（手打 %@ − 口述 %@）";
+"usage.saved.speed" = "手打";
+"usage.saved.speedUnit" = "字/分";
+"usage.saved.zeroMinutes" = "0 分钟";
+"usage.saved.minutes" = "%d 分钟";
+"usage.saved.hours" = "%d 小时";
+"usage.saved.hourMinutes" = "%d 小时 %d 分钟";
+"usage.section.base" = "语音与文本";
+"usage.section.styles" = "听写与风格";
+"usage.section.mode" = "工作模式分布";
+"usage.row.breakdown" = "条数构成（成功 / 失败 / 取消）";
+"usage.row.breakdown.hint" = "语音条数与历史记录总数同源；短于 300ms 的误触不入库。";
+"usage.row.longest" = "单次最长录音";
+"usage.row.avg" = "平均每次时长";
+"usage.row.daily.count" = "日均使用次数";
+"usage.row.daily.chars" = "日均输出字数";
+"usage.row.daily.today" = "今天时段即当日值。";
+"usage.row.daily.count.days" = "成功条目 ÷ %d 天。";
+"usage.row.daily.chars.days" = "成功产出字数 ÷ %d 天。";
+"usage.row.perDay" = "%@ 次/天";
+"usage.row.charsPerDay" = "%@ 字/天";
+"usage.row.timesUnit" = "%d 次";
+"usage.row.pct" = "占比 %d%%";
+"usage.row.dictation" = "听写模式";
+"usage.row.style.unused" = "暂未使用";
+"usage.row.style.deleted" = "已删除风格";
+"usage.row.api" = "服务器 API 调用（推算）";
+"usage.row.api.hint" = "按历史条目推算；不含设置页「测试连接」探测。";
+"usage.row.api.sub" = "ASR %d · LLM %d";
+"usage.row.local" = "本地模型";
+"usage.row.local.hint" = "设备端本地转写模型暂未开放；上线后本地处理的条目计入此处。";
+"usage.row.local.zero" = "0 次";
+"usage.row.local.sub" = "暂未开放";
+"usage.empty" = "暂无使用数据";
+"usage.empty.desc" = "按下听写快捷键完成第一次听写，统计数据会在这里自动累积。";
+"usage.footnote" = "口径：时长、字数、速度与日均仅计成功条目；总字数为最终产出（润色后）字符数（去空白）；口述速度 = 原始转写字数 ÷ 录音时长（字/分钟）；日均分母为区间自然日。";
 
 /* 历史页空状态（PRD US-006 逐字文案；搜索无结果时空状态同款） */
 "history.empty" = "还没有听写记录。按快捷键开始第一句。";
@@ -47,7 +102,7 @@
 "settings.general.soundEffect" = "效果音";
 "settings.general.soundEffect.hint" = "开录与停录的提示声音，选中即试听。";
 "settings.general.escCancel" = "Esc 取消录音";
-"settings.general.escCancel.hint" = "录音与转写中按 Esc 立即取消。";
+"settings.general.escCancel.hint" = "录音、转写与润色中按 Esc 立即取消。";
 "settings.general.muteDuringRecording" = "录音时静音";
 "settings.general.muteDuringRecording.hint" = "开始录音时静音系统声音（其他 App 与提示音），录音结束自动恢复。";
 "settings.general.title" = "常规设置";
@@ -55,6 +110,8 @@
 "settings.general.section.general" = "通用";
 "settings.general.section.permissions" = "权限";
 "settings.general.section.data" = "数据";
+"settings.general.requestLog" = "请求日志";
+"settings.general.requestLog.hint" = "记录听写与 AI 服务请求参数到数据文件夹的 request-log.jsonl（含口述文本，API Key 始终隐藏）。";
 "settings.general.dataFolder" = "数据文件夹";
 "settings.general.openDataFolder" = "打开数据文件夹";
 "settings.general.permission.microphone" = "麦克风";
@@ -68,11 +125,15 @@
 "settings.general.permission.authorize" = "去授权";
 "settings.general.section.recording" = "录音";
 "settings.general.section.output" = "输出与保留";
-"settings.general.autoCopy" = "自动复制到剪贴板";
-"settings.general.autoCopy.hint" = "转写文本写入剪贴板后再粘贴。";
+"settings.general.autoCopy" = "自动复制文本到剪贴板";
+"settings.general.autoCopy.hint" = "转写结果始终写入剪贴板，配合下方输入方法使用，无法关闭。";
 "settings.general.textInputMethod" = "文本输入方法";
-"settings.general.textInputMethod.hint" = "v1 固定为剪贴板粘贴。";
-"settings.general.textInputMethod.paste" = "粘贴";
+"settings.general.textInputMethod.hint" = "文字进入目标应用的方式；个别应用不响应粘贴时可改用模拟按键。";
+"settings.general.textInputMethod.paste" = "粘贴 (⌘+V)";
+"settings.general.textInputMethod.paste.colemak" = "粘贴 (Colemak - ⌘+D)";
+"settings.general.textInputMethod.paste.dvorak" = "粘贴 (Dvorak - ⌘+.)";
+"settings.general.textInputMethod.paste.optimot" = "粘贴 (Optimot - ⌘+/)";
+"settings.general.textInputMethod.simulate" = "模拟按键";
 "settings.general.maxDuration" = "录音上限";
 "settings.general.maxDuration.hint" = "单次录音达到上限自动进入转写。";
 "settings.general.retention" = "音频保留";
@@ -219,6 +280,8 @@
 "settings.llm.model.customid" = "自定义模型 ID";
 "settings.llm.model.customid.hint" = "仅当「模型」选为「自定义模型」且此处非空时，才使用该模型。";
 "settings.llm.model.customid.empty" = "已选择「自定义模型」，请填写模型 ID";
+"settings.llm.model.id.placeholder" = "模型 ID";
+"models.model.id.placeholder" = "模型 ID";
 "settings.llm.model.badge.flagship" = "旗舰";
 "settings.llm.model.badge.value" = "高性价比";
 "settings.llm.model.badge.free" = "免费";
@@ -330,8 +393,16 @@
 "detail.regen.done" = "已重新生成";
 "detail.failsub.style.fallback" = "原文已回退粘贴；点「重新生成」可重跑润色。";
 "detail.failsub.style.kept" = "音频已保留；点「重新生成」可重跑润色。";
+/* TASK-132：风格条目 ASR 段失败（rawText 空）——「重新生成」实为全链路重跑 */
+"detail.failsub.style.full" = "音频已保留；点「重新生成」可重跑转写与润色。";
 "detail.failsub.plain.fallback" = "原文已回退粘贴；点「重新转写」可重试。";
 "detail.failsub.plain.kept" = "音频已保留；点「重新转写」可重试。";
+/* 取消条目引导横幅（TASK-132：Esc 中断条目的出口指引，按可操作性分流） */
+"detail.cancelled.title" = "已取消";
+"detail.cancelled.sub.styleRaw" = "转写原文已保留；点「重新生成」可重跑润色。";
+"detail.cancelled.sub.styleAudio" = "音频已保留；点「重新生成」可重跑转写与润色。";
+"detail.cancelled.sub.dictationAudio" = "音频已保留；点「重新转写」可重试。";
+"detail.cancelled.sub.noAudio" = "音频已清理，无法重跑。";
 "detail.model.asr" = "听写";
 "detail.model.llm" = "AI提示";
 "detail.retranscribe" = "重新转写";
@@ -445,6 +516,8 @@
 "history.failedSummary" = "转写失败：%@";
 "history.fallbackPasted" = "已回退粘贴原文";
 "history.audioKept" = "音频已保留";
+/* Esc 中断的条目（TASK-130：音频/转写保留，可重新转写/重新生成） */
+"history.cancelled" = "已取消";
 
 /* 快捷键页（模式说明随档位切换 + 互斥内联提示） */
 "settings.hotkey.mode.hint.hold" = "按住：按住触发键说话，松开结束听写。";

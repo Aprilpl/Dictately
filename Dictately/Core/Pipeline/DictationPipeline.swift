@@ -41,7 +41,9 @@ struct DictationServices {
 /// 听写编排器（FR-006）——TASK-019 起为全链路：
 ///
 /// 状态：idle → recording →（停止）transcribing →（ASR 成功）done/cancelled；
-/// 取消：recording → cancelled → idle（停录 + 删临时文件 + 面板淡出 + 不入库）。
+/// 取消：recording → cancelled → idle（停录 + 删临时文件 + 面板淡出 + 不入库）；
+/// 处理段取消（TASK-130）：transcribing/polishing 按 Esc → 取消在途链路任务 +
+/// 面板立即淡出，音频与已得转写文本保留、以 cancelled 条目入库（历史可重跑补救）。
 /// services == nil 时退化为录音段骨架（TASK-015 行为，测试兼容）。
 final class DictationPipeline {
     let panelModel: RecordingPanelModel
@@ -160,24 +162,41 @@ final class DictationPipeline {
 
     // MARK: - 取消（Esc / 编程入口）
 
-    /// 全局 Esc 入口（HotkeyEngine tap 捕获）：设置开启 + 录音中/预滚中才生效（FR-003）。
+    /// 全局 Esc 入口（HotkeyEngine tap 捕获）：设置开启 + 可取消阶段才生效（FR-003）。
+    /// TASK-130 起处理段（转写/润色）同受管——请求慢时可中断，数据语义见 cancel()。
     func handleEscape() {
-        guard settings.escCancelsRecording,
-              panelModel.phase == .recording || panelModel.phase == .cueing else { return }
-        cancel()
+        guard settings.escCancelsRecording else { return }
+        switch panelModel.phase {
+        case .recording, .cueing, .transcribing, .polishing:
+            cancel()
+        case .idle, .failed, .done, .cancelled:
+            break
+        }
     }
 
     /// 取消当前听写：停录 + 删临时音频 + 面板淡出 + 不入库（FR-006/PRD §11）。
     /// cueing 态取消（TASK-075）：尚未开录、无文件可清——失效预滚世代并直接淡出。
+    /// transcribing/polishing 态取消（TASK-130）：取消在途链路任务 + 面板立即淡出；
+    /// 音频与已得转写文本**不删**——链内协作检查点经 abortCancelledChain 以
+    /// cancelled 条目收口（裁决 A），历史页可「重新转写/重新生成」补救。
     func cancel() {
-        guard panelModel.phase == .recording || panelModel.phase == .cueing else { return }
-        removeEscMonitor()
-        if panelModel.phase == .recording {
-            recorder.cancel() // 结果经 onFinish(.cancelled) 回调收尾
-        } else {
-            cueGeneration += 1 // 播完回调/兜底超时到来时世代已变，不再开录
+        switch panelModel.phase {
+        case .recording, .cueing:
+            removeEscMonitor()
+            if panelModel.phase == .recording {
+                recorder.cancel() // 结果经 onFinish(.cancelled) 回调收尾
+            } else {
+                cueGeneration += 1 // 播完回调/兜底超时到来时世代已变，不再开录
+                panelModel.enterCancelled()
+                finishAndHidePanel()
+            }
+        case .transcribing, .polishing:
+            chainTask?.cancel() // 在途 ASR/LLM 请求随之抛 cancellation，链内协作收口
+            removeEscMonitor()
             panelModel.enterCancelled()
             finishAndHidePanel()
+        case .idle, .failed, .done, .cancelled:
+            break
         }
     }
 
@@ -339,7 +358,9 @@ final class DictationPipeline {
         // 录音时静音的恢复点：停止/上限/中断/取消/误触守卫全部经此漏斗，
         // 先恢复声音再走各分支（结束提示音因此可闻）；未亲手静音则空操作。
         audioMuter.restore()
-        removeEscMonitor()
+        // Esc monitor 不在此拆（TASK-130）：转写/润色段仍可取消，生命周期移至
+        // 面板各收尾点（finishAndHidePanel 等）；monitor 闭包自身按相态直通，
+        // 滞留期不会吞掉本 App 其他 UI 的 Esc。
         recordingInitiatedByPress = false
         phaseTimer.end(.record)
 
@@ -385,6 +406,8 @@ final class DictationPipeline {
     // 并各自记日志；此处自动重试日志统一带「auto-retry 1/1」字样。
 
     /// ASR 转写 + 网络类错误自动重试一次（networkUnreachable/timeout；其余错误直接抛）。
+    /// Esc 中断（TASK-130）：取消态不重试——重试只会对着已取消的 Task 再抛一次，
+    /// 还会把「用户主动取消」污染成网络失败路径。
     private static func transcribeWithAutoRetry(
         _ engine: ASREngine, audioFileAt url: URL, config: ASRConfig,
         timer: PhaseTimer
@@ -392,6 +415,7 @@ final class DictationPipeline {
         do {
             return try await engine.transcribe(audioFileAt: url, config: config)
         } catch let error as ASRError where error.isNetworkError {
+            guard !Task.isCancelled else { throw CancellationError() }
             AppLog.pipeline.notice("asr network error (\(error.localizedDescription, privacy: .public)), auto-retry 1/1 (no backoff)")
             timer.end(.asr)
             timer.begin(.asr) // 重试计为新一段 asr
@@ -399,7 +423,7 @@ final class DictationPipeline {
         }
     }
 
-    /// LLM 润色 + 网络类错误自动重试一次。
+    /// LLM 润色 + 网络类错误自动重试一次（取消态同上不重试）。
     private static func polishWithAutoRetry(
         _ executor: StyleExecutor, rawText: String, style: Style, config: LLMConfig,
         timer: PhaseTimer
@@ -407,6 +431,7 @@ final class DictationPipeline {
         do {
             return try await executor.polish(rawText: rawText, style: style, config: config)
         } catch let error as LLMError where error.isNetworkError {
+            guard !Task.isCancelled else { throw CancellationError() }
             AppLog.pipeline.notice("llm network error (\(error.localizedDescription, privacy: .public)), auto-retry 1/1 (no backoff)")
             timer.end(.llm)
             timer.begin(.llm)
@@ -426,10 +451,14 @@ final class DictationPipeline {
         entryID: Int64? = nil, style: Style? = nil, pasteEnabled: Bool = true
     ) {
         chainRecording = recording
+        // 处理段 Esc 提示快照 + 本地监听通道（TASK-130）：retry 链路从 idle 直入
+        // 处理段、无预滚/录音段的安装点——两条 Esc 通道在此补齐（幂等，已装则跳过）。
+        panelModel.snapshotEscHint(settings.escCancelsRecording)
+        installEscMonitor()
         let config = ASRConfig.live(settings: settings, secrets: services.secrets)
         let llmConfig = LLMConfig.live(settings: settings, secrets: services.secrets)
-        // 主线程快照设置（AppSettings 非线程安全）
-        let autoCopy = settings.autoCopyClipboard
+        // 主线程快照设置（AppSettings 非线程安全）；剪贴板写入已锁定常开（TASK-126）
+        let inputMethod = settings.textInputMethod
         let timer = phaseTimer
 
         chainTask = Task.detached { [weak self] in
@@ -442,26 +471,44 @@ final class DictationPipeline {
                     services.asrEngine, audioFileAt: recording.url, config: config, timer: timer)
                 timer.end(.asr)
 
-                // 润色 → 输出 → 入库：返回值均为不可变绑定（并发闭包禁捕获 var）
-                let polish = await self.runPolishPass(
-                    rawText: transcript.text, style: style, services: services,
-                    config: llmConfig, timer: timer)
-                let output = self.deliverOutput(
-                    text: polish.text, autoCopy: autoCopy, pasteEnabled: pasteEnabled,
-                    services: services, timer: timer)
-                let successEntryID = self.persistSuccessEntry(
-                    transcript: transcript, recording: recording, services: services,
-                    entryID: entryID, style: style, config: config,
-                    finalText: polish.text, llmModel: polish.llmModel, llmLatencyMs: polish.llmLatencyMs,
-                    polishError: polish.polishError, pasted: output.pasted)
+                // 内层 do 使 transcript 保持词法可见——转写已得后的取消（润色段/
+                // 输出前边界）需带着 rawText 收口（并发闭包禁捕获 var，无法用外部盒）
+                do {
+                    // 取消迟到于 ASR 返回（TASK-130）：不再润色/输出/入库成功
+                    try Task.checkCancellation()
+                    // 润色 → 输出 → 入库：返回值均为不可变绑定（并发闭包禁捕获 var）
+                    let polish = try await self.runPolishPass(
+                        rawText: transcript.text, style: style, services: services,
+                        config: llmConfig, timer: timer)
+                    // 取消迟到于润色返回：「取消 = 不输出」裁决——绝不粘贴/写剪贴板
+                    try Task.checkCancellation()
+                    let output = self.deliverOutput(
+                        text: polish.text, method: inputMethod, pasteEnabled: pasteEnabled,
+                        services: services, timer: timer)
+                    let successEntryID = self.persistSuccessEntry(
+                        transcript: transcript, recording: recording, services: services,
+                        entryID: entryID, style: style, config: config,
+                        finalText: polish.text, llmModel: polish.llmModel, llmLatencyMs: polish.llmLatencyMs,
+                        polishError: polish.polishError, pasted: output.pasted)
 
-                await MainActor.run {
-                    if let polishFailure = polish.polishError {
-                        self.finishPolishFailure(recording: recording, error: polishFailure, entryID: successEntryID)
-                    } else {
-                        self.finishSuccess(pasteFailed: output.pasteFailed, entryID: successEntryID)
+                    await MainActor.run {
+                        guard !Task.isCancelled else { return } // 面板已被 cancel() 收口，迟到收尾作废
+                        if let polishFailure = polish.polishError {
+                            self.finishPolishFailure(recording: recording, error: polishFailure, entryID: successEntryID)
+                        } else {
+                            self.finishSuccess(pasteFailed: output.pasteFailed, entryID: successEntryID)
+                        }
                     }
+                } catch is CancellationError {
+                    self.abortCancelledChain(
+                        recording: recording, style: style, services: services,
+                        entryID: entryID, rawText: transcript.text)
                 }
+            } catch is CancellationError {
+                // 转写段被 Esc 中断：rawText 未得（裁决 A：音频保留、无文本）
+                self.abortCancelledChain(
+                    recording: recording, style: style, services: services,
+                    entryID: entryID, rawText: nil)
             } catch let error as ASRError {
                 timer.end(.asr)
                 // 失败入库：音频保留、错误分类齐全（FR-006「任意阶段抛错 → 统一失败处理」）
@@ -479,10 +526,12 @@ final class DictationPipeline {
 
     /// 润色段（FR-008/US-004）：面板进入「润色中 · x.xs」；LLM 失败 → 回退粘贴原始转写
     /// （finalText = rawText，条目 failed，可重试润色）。无风格时原样透传（finalText = rawText）。
+    /// TASK-130：Esc 取消时抛 CancellationError 上传——**不得**吞成 polishError，
+    /// 否则会走「润色失败回退粘贴原文」路径把文字粘进前台 App（违反「取消=不输出」裁决）。
     private func runPolishPass(
         rawText: String, style: Style?, services: DictationServices,
         config: LLMConfig, timer: PhaseTimer
-    ) async -> (text: String, llmModel: String?, llmLatencyMs: Int?, polishError: LLMError?) {
+    ) async throws -> (text: String, llmModel: String?, llmLatencyMs: Int?, polishError: LLMError?) {
         var finalText = rawText
         var llmModel: String?
         var llmLatencyMs: Int?
@@ -497,29 +546,65 @@ final class DictationPipeline {
                 finalText = polished.text
                 llmModel = polished.model
                 llmLatencyMs = polished.latencyMs
-            } catch let error as LLMError {
-                polishError = error
             } catch {
-                polishError = .badResponse
+                if Task.isCancelled {
+                    timer.end(.llm)
+                    throw CancellationError()
+                }
+                polishError = error as? LLMError ?? .badResponse
             }
             timer.end(.llm)
         }
         return (finalText, llmModel, llmLatencyMs, polishError)
     }
 
-    /// 输出段：剪贴板（autoCopy）→ 合成 ⌘V（FR-005）。粘贴失败退化为「已复制」
+    /// Esc 中断收口（TASK-130，裁决 A）：面板与计时已由 cancel() 主线程侧收口，
+    /// 此处只负责数据面——fresh 链插入 cancelled 条目（音频与已得转写文本保留，
+    /// 润色中断 finalText=rawText 回填）；retry 链原行不动（保留其原状态供再次重试），
+    /// 仅触发重试完成回调。**不得**触碰面板状态/计时器（避免迟到写覆盖已收口态）。
+    private func abortCancelledChain(
+        recording: AudioRecording, style: Style?, services: DictationServices,
+        entryID: Int64?, rawText: String?
+    ) {
+        if let entryID {
+            AppLog.pipeline.notice("retry chain #\(entryID, privacy: .public) cancelled by user (esc) — entry row untouched")
+        } else {
+            let entry = Entry(
+                createdAt: services.now().timeIntervalSince1970,
+                type: style == nil ? .dictation : .style,
+                styleId: style?.id,
+                status: .cancelled,
+                audioPath: recording.url.lastPathComponent,
+                audioDurationMs: recording.durationMs,
+                rawText: rawText,
+                finalText: rawText
+            )
+            if let inserted = try? services.entries.insert(entry) {
+                AppLog.pipeline.notice("entry #\(inserted.id.map(String.init) ?? "?", privacy: .public) cancelled by user (esc) audio=\(recording.url.lastPathComponent, privacy: .public)")
+            }
+        }
+        completeEntryRetry()
+    }
+
+    /// 输出段：剪贴板（TASK-126 锁定常开，模拟按键模式同样写入——用户裁决）→ 按
+    /// 文本输入方法注入（FR-005：合成 ⌘+物理键 或模拟打字）。注入失败退化为「已复制」
     /// （US-002 edge：文本在剪贴板，pasted=0），由调用方决定是否进 paste 失败态。
     private func deliverOutput(
-        text: String, autoCopy: Bool, pasteEnabled: Bool,
+        text: String, method: TextInputMethod, pasteEnabled: Bool,
         services: DictationServices, timer: PhaseTimer
     ) -> (pasted: Bool, pasteFailed: Bool) {
-        if autoCopy { services.clipboard.write(text) }
+        services.clipboard.write(text)
         timer.begin(.paste)
         var pasted = false
         var pasteFailed = false
         if pasteEnabled {
             do {
-                try services.pasteInjector.paste()
+                switch method {
+                case .simulateTyping:
+                    try services.pasteInjector.typeText(text)
+                default:
+                    try services.pasteInjector.paste(keyCode: method.pasteKeyCode ?? PasteInjector.virtualKeyV)
+                }
                 pasted = true
             } catch {
                 pasteFailed = true
@@ -647,6 +732,7 @@ final class DictationPipeline {
     func closeFailedPanel() {
         guard case .failed = panelModel.phase else { return }
         lastFailure = nil
+        removeEscMonitor()
         panel.hidePanel()
         panelModel.reset()
         currentStyle = nil
@@ -711,7 +797,7 @@ final class DictationPipeline {
 
     /// 失败面板的「重试」动作（FR-013 面板内手动重试；自动重试一次是 Phase 4 TASK-043）。
     /// - asr 失败：用已落盘音频重跑 ASR→输出段，结果更新原条目；
-    /// - paste 失败：仅重发合成 ⌘V，成功则回写 pasted=1。
+    /// - paste 失败：按当前文本输入方法重注入（粘贴键位 / 模拟打字），成功则回写 pasted=1。
     /// 重试前面板回 transcribing 态（粘贴重试除外——无网络段）。
     func retryFromFailure() {
         guard case .failed = panelModel.phase, let failure = lastFailure else { return }
@@ -756,8 +842,12 @@ final class DictationPipeline {
             }
             return
         }
+        // 处理段 Esc 提示快照 + 本地监听通道（TASK-130，与 processFullChain 对称）
+        panelModel.snapshotEscHint(settings.escCancelsRecording)
+        installEscMonitor()
         let llmConfig = LLMConfig.live(settings: settings, secrets: services.secrets)
-        let autoCopy = settings.autoCopyClipboard
+        // 主线程快照设置（AppSettings 非线程安全）；剪贴板写入已锁定常开（TASK-126）
+        let inputMethod = settings.textInputMethod
         let timer = phaseTimer
 
         chainTask = Task.detached { [weak self] in
@@ -768,7 +858,16 @@ final class DictationPipeline {
                 let executor = StyleExecutor(engine: services.llmEngine)
                 let result = try await Self.polishWithAutoRetry(
                     executor, rawText: rawText, style: style, config: llmConfig, timer: timer)
+                // 取消迟到于润色返回（TASK-130）：不得粘贴/写成功
+                try Task.checkCancellation()
                 outcome = .success(result)
+            } catch is CancellationError {
+                // Esc 中断：retry 链原行不动，仅触发重试完成回调；
+                // 面板已被 cancel() 收口——不得走失败收尾复活 HUD
+                timer.end(.llm)
+                self.completeEntryRetry()
+                AppLog.pipeline.notice("retry-polish #\(entryID, privacy: .public) cancelled by user (esc)")
+                return
             } catch let error as LLMError {
                 outcome = .failure(error)
             } catch {
@@ -782,7 +881,7 @@ final class DictationPipeline {
                 // 只影响条目 pasted 位，不进 paste 失败态（历史「重新生成」粘贴是附带动作，
                 // 文本已在剪贴板）——故收尾恒走 finishSuccess(pasteFailed: false)。
                 let output = self.deliverOutput(
-                    text: polished.text, autoCopy: autoCopy, pasteEnabled: true,
+                    text: polished.text, method: inputMethod, pasteEnabled: true,
                     services: services, timer: timer)
 
                 if var updated = try? services.entries.fetch(id: entryID) {
@@ -797,6 +896,7 @@ final class DictationPipeline {
                 }
                 AppLog.pipeline.notice("entry #\(entryID, privacy: .public) retry-polish success \(PhaseTimer.textDigest(polished.text), privacy: .public)")
                 await MainActor.run {
+                    guard !Task.isCancelled else { return } // 取消迟到收尾作废（TASK-130）
                     self.finishSuccess(pasteFailed: false, entryID: entryID)
                 }
             case .failure(let error):
@@ -825,24 +925,35 @@ final class DictationPipeline {
         return (try? services.styles.fetch(id: styleId)) ?? nil
     }
 
-    /// 仅重试粘贴：文本已在剪贴板（US-002 降级前提），重发 ⌘V 成功则更新 pasted。
+    /// 仅重试注入：文本已在剪贴板（US-002 降级前提 + TASK-126 强制常开），按当前文本
+    /// 输入方法重注入——模拟按键模式取条目文本重打，粘贴模式重发对应键位 ⌘ 组合。
     private func retryPasteOnly(entryID: Int64?) {
         guard let services else { return }
+        let method = settings.textInputMethod
         phaseTimer.begin(.paste)
         do {
-            try services.pasteInjector.paste()
+            switch method {
+            case .simulateTyping:
+                let entry = entryID.flatMap { try? services.entries.fetch(id: $0) }
+                guard let text = entry?.finalText ?? entry?.rawText, !text.isEmpty else {
+                    throw PasteError.eventCreationFailed
+                }
+                try services.pasteInjector.typeText(text)
+            default:
+                try services.pasteInjector.paste(keyCode: method.pasteKeyCode ?? PasteInjector.virtualKeyV)
+            }
             phaseTimer.end(.paste)
             lastFailure = nil
             if let entryID, var original = try? services.entries.fetch(id: entryID) {
                 original.pasted = true
                 _ = try? services.entries.update(original)
             }
-            // 粘贴已生效（文字就位）——直接淡出收尾，无需 done 态展示
+            // 注入已生效（文字就位）——直接淡出收尾，无需 done 态展示
             panel.hidePanel()
             panelModel.reset()
             phaseTimer.finish()
             finishAndHidePanel(delay: PanelVisibilityPolicy.doneAutoHideDelay)
-            AppLog.pipeline.notice("paste retry success")
+            AppLog.pipeline.notice("paste retry success method=\(method.rawValue, privacy: .public)")
         } catch {
             phaseTimer.end(.paste)
             panelModel.enterFailed(String(localized: "panel.pasted.fallback", bundle: AppResources.bundle))
@@ -857,9 +968,11 @@ final class DictationPipeline {
     /// 用户随即再触发热键），迟到的收尾不得隐藏新 HUD、重置状态或清 currentStyle
     /// （对照失败路径 scheduleFailedPanelAutoDismiss 的同款守卫；终态含 .idle——
     /// retryPasteOnly 本就先 reset 后挂延迟收尾）。
+    /// Esc monitor 在此统一拆除（TASK-130）：录音结束不再拆，处理段仍需监听。
     private func finishAndHidePanel(delay: TimeInterval = 0) {
         phaseTimer.finish()
         let hide = { [weak self] in
+            self?.removeEscMonitor()
             self?.panel.hidePanel()
             self?.panelModel.reset()
             self?.currentStyle = nil
@@ -881,15 +994,23 @@ final class DictationPipeline {
 
     // MARK: - Esc 本地捕获（面板显示期间）
 
-    /// Esc 监听（PRD FR-003 / roadmap TASK-015）：面板期间 NSEvent local monitor
-    /// 捕获 keyDown 53（kVK_Escape）并吞掉。面板以 nonactivating key 呈现（TASK-013），
-    /// 用户按 Esc 时事件进入本 App → 本 monitor 可见；受 `escCancelsRecording` 控制。
+    /// Esc 监听（PRD FR-003 / roadmap TASK-015）：NSEvent local monitor 捕获 keyDown 53
+    /// （kVK_Escape）。面板以 nonactivating key 呈现（TASK-013），用户按 Esc 时事件进入
+    /// 本 App → 本 monitor 可见；受 `escCancelsRecording` 控制。
+    /// TASK-130：可取消阶段扩至转写/润色；非可取消阶段（idle/failed/done/cancelled）
+    /// **直通不吞**——monitor 滞留期（如 failed 面板等待用户操作）不得吃掉本 App
+    /// 其他 UI 的 Esc（关弹窗等语义）。
     private func installEscMonitor() {
         guard settings.escCancelsRecording, escMonitor == nil, NSApp != nil else { return }
         escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.keyCode == 53 else { return event } // kVK_Escape
-            self.cancel()
-            return nil // 吞掉：Esc 不再传给面板内容
+            switch self.panelModel.phase {
+            case .cueing, .recording, .transcribing, .polishing:
+                self.cancel()
+                return nil // 吞掉：Esc 不再传给面板内容
+            case .idle, .failed, .done, .cancelled:
+                return event // 非可取消阶段：直通
+            }
         }
     }
 
@@ -905,6 +1026,7 @@ final class DictationPipeline {
     private func scheduleFailedPanelAutoDismiss() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
             guard let self, self.panelModel.phase != .idle, self.panelModel.phase != .recording else { return }
+            self.removeEscMonitor()
             self.panel.hidePanel()
             self.panelModel.reset()
         }

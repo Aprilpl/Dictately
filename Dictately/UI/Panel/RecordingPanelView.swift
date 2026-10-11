@@ -68,8 +68,12 @@ struct RecordingPanelView: View {
 
                 statusArea
 
-                if model.escHintVisible && (model.phase == .recording || model.phase == .cueing) {
-                    escHint
+                // Esc 取消提示覆盖全部可取消阶段（TASK-130）：预滚/录音/转写/润色
+                switch model.phase {
+                case .cueing, .recording, .transcribing, .polishing:
+                    if model.escHintVisible { escHint }
+                case .idle, .failed, .done, .cancelled:
+                    EmptyView()
                 }
             }
             .padding(.horizontal, 16)

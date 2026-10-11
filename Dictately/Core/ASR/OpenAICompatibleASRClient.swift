@@ -13,44 +13,90 @@ final class OpenAICompatibleASRClient: ASREngine {
     static let fileSizeLimitBytes = 25 * 1024 * 1024
 
     private let session: URLSession
+    /// 请求日志（nil = 不记录：单测默认形态；生产由 AppEnvironment 注入）。
+    private let requestLog: RequestLog?
 
     /// session 注入供 URLProtocol stub 单测；生产用共享工厂（`NetworkSessionFactory`，
     /// request 60s / resource 120s，PRD §4）。
-    init(session: URLSession = NetworkSessionFactory.make()) {
+    init(session: URLSession = NetworkSessionFactory.make(), requestLog: RequestLog? = nil) {
         self.session = session
+        self.requestLog = requestLog
     }
 
     func transcribe(audioFileAt url: URL, config: ASRConfig) async throws -> ASRTranscript {
         // 0. 空 Key 本地拦截（读文件前）：不发空 Bearer 让服务端 401 兜底——「未配置」与「无效」分开报
-        guard !config.apiKey.isEmpty else { throw ASRError.missingApiKey }
+        guard !config.apiKey.isEmpty else {
+            requestLog?.append(.rejected(
+                kind: .asrCompatible, purpose: .transcribe,
+                url: config.baseURL.appendingPathComponent("audio/transcriptions").absoluteString,
+                error: "missingApiKey（本地拦截，未发请求）"))
+            throw ASRError.missingApiKey
+        }
         // 0b. scheme 兜底（读文件前）：与 LLM 客户端对称——绕过 UI 的配置
         //     不让 Bearer Key 随非 http(s) scheme 外发（http 为 custom 端点例外）
-        guard config.isHTTPScheme else { throw ASRError.invalidBaseURL }
+        guard config.isHTTPScheme else {
+            requestLog?.append(.rejected(
+                kind: .asrCompatible, purpose: .transcribe,
+                url: config.baseURL.appendingPathComponent("audio/transcriptions").absoluteString,
+                error: "invalidBaseURL（本地拦截，未发请求）"))
+            throw ASRError.invalidBaseURL
+        }
 
         // 1. 读文件 + 体积预判
         let fileData: Data
         do {
             fileData = try Data(contentsOf: url)
         } catch {
+            requestLog?.append(.rejected(
+                kind: .asrCompatible, purpose: .transcribe,
+                url: config.baseURL.appendingPathComponent("audio/transcriptions").absoluteString,
+                error: "音频文件读取失败：\(error.localizedDescription)"))
             throw ASRError.badRequest("音频文件读取失败：\(error.localizedDescription)")
         }
-        guard fileData.count <= Self.fileSizeLimitBytes else { throw ASRError.audioTooLarge }
+        guard fileData.count <= Self.fileSizeLimitBytes else {
+            requestLog?.append(.rejected(
+                kind: .asrCompatible, purpose: .transcribe,
+                url: config.baseURL.appendingPathComponent("audio/transcriptions").absoluteString,
+                request: ["audio": ["bytes": fileData.count] as [String: Any]],
+                error: "audioTooLarge（\(fileData.count) 字节 > 上限）"))
+            throw ASRError.audioTooLarge
+        }
 
         // 2. 组 multipart 请求体
         let boundary = "Dictately-\(UUID().uuidString)"
+        let fileMIME = config.audioFormat == .mp3 ? "audio/mpeg" : "audio/wav"
+        let prompt = Self.promptPrefix(languageHints: config.languageHints, vocabulary: config.vocabulary)
         let body = Self.multipartBody(
             fileData: fileData,
-            fileMIME: config.audioFormat == .mp3 ? "audio/mpeg" : "audio/wav",
+            fileMIME: fileMIME,
             model: config.model,
-            prompt: Self.promptPrefix(languageHints: config.languageHints, vocabulary: config.vocabulary),
+            prompt: prompt,
             boundary: boundary
         )
+
+        // 请求日志形态的请求体：multipart 字段镜像（file 只记元数据不记音频本体；
+        // model/prompt 与 multipartBody 同条件携带——非空才带）
+        var loggedRequest: [String: Any] = [
+            "audio": ["mime": fileMIME, "bytes": fileData.count] as [String: Any],
+        ]
+        if !config.model.isEmpty { loggedRequest["model"] = config.model }
+        if let prompt, !prompt.isEmpty { loggedRequest["prompt"] = prompt }
 
         var request = URLRequest(url: config.baseURL.appendingPathComponent("audio/transcriptions"))
         request.httpMethod = "POST"
         request.httpBody = body
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+
+        // 请求日志条目（Authorization 脱敏），随请求推进补齐 outcome
+        var log = RequestLog.Entry(
+            kind: .asrCompatible,
+            purpose: .transcribe,
+            url: config.baseURL.appendingPathComponent("audio/transcriptions").absoluteString,
+            headers: RequestLog.loggedHeaders(
+                authorization: RequestLog.redactedAuthorization(apiKey: config.apiKey),
+                contentType: "multipart/form-data; boundary=\(boundary)"),
+            request: loggedRequest)
 
         // 3. 发请求（计时，写 entries.asr_latency_ms）
         let startedAt = Date()
@@ -59,9 +105,26 @@ final class OpenAICompatibleASRClient: ASREngine {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
+            log.latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+            // Esc 中断（TASK-130）：取消抛 CancellationError 而非映射 networkUnreachable
+            //（理由同 QwenASRClient：防 autoRetryOnce 二发 + 失败收口覆盖取消态）
+            if error.code == .cancelled {
+                log.error = "已取消（Esc 中断，请求未完成）"
+                requestLog?.append(log)
+                throw CancellationError()
+            }
+            log.error = "网络错误：\(error.localizedDescription)"
+            requestLog?.append(log)
             throw ASRError.map(error)
+        } catch is CancellationError {
+            log.latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+            log.error = "已取消（Esc 中断，请求未完成）"
+            requestLog?.append(log)
+            throw CancellationError()
         }
         let latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+        log.latencyMs = latencyMs
+        if let http = response as? HTTPURLResponse { log.status = http.statusCode }
 
         // 4. 状态码映射（与 Qwen 客户端同表）；4xx body 同样落日志（与 QwenASRClient 对齐）
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
@@ -71,6 +134,9 @@ final class OpenAICompatibleASRClient: ASREngine {
             } else {
                 AppLog.pipeline.error("asr(compat) 4xx status=\(http.statusCode, privacy: .public) body=\(summary, privacy: .public)")
             }
+            log.error = "HTTP \(http.statusCode)"
+            log.bodySummary = summary
+            requestLog?.append(log)
             throw ASRError.map(statusCode: http.statusCode, bodySummary: summary)
         }
 
@@ -79,11 +145,24 @@ final class OpenAICompatibleASRClient: ASREngine {
         do {
             decoded = try JSONDecoder().decode(ResponseBody.self, from: data)
         } catch {
-            AppLog.pipeline.error("asr(compat) bad response: \(String(decoding: data.prefix(200), as: UTF8.self), privacy: .public)")
+            let summary = String(decoding: data.prefix(200), as: UTF8.self)
+            AppLog.pipeline.error("asr(compat) bad response: \(summary, privacy: .public)")
+            log.error = "响应非 JSON"
+            log.bodySummary = summary
+            requestLog?.append(log)
             throw ASRError.badResponse
         }
-        guard let text = decoded.text else { throw ASRError.badResponse }
-        if text.isEmpty { throw ASRError.emptyResult }
+        guard let text = decoded.text else {
+            log.error = "text 缺失（badResponse）"
+            requestLog?.append(log)
+            throw ASRError.badResponse
+        }
+        if text.isEmpty {
+            log.error = "text 为空（emptyResult）"
+            requestLog?.append(log)
+            throw ASRError.emptyResult
+        }
+        requestLog?.append(log)
 
         return ASRTranscript(text: text, durationSeconds: nil, requestID: nil, latencyMs: latencyMs)
     }

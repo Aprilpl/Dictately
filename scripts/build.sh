@@ -40,7 +40,7 @@ cp -R "${SPM_BUNDLE}" "${APP}/Contents/Resources/"
 if codesign --sign "Dictately Dev" --force --timestamp=none "${APP}" 2>/dev/null; then
   echo "→ codesign（Dictately Dev 稳定身份）"
 else
-  echo "→ codesign（ad-hoc 自签；提示：创建 Dictately Dev 证书可让 TCC 类授权跨编译有效）"
+  echo "⚠ codesign 回退 ad-hoc：钥匙串无「Dictately Dev」证书——TCC 授权（辅助功能/麦克风）将随每次重建失效、用户每次启动都要重新授权！重建证书配方见 AGENTS.md §30 追记（2026-10-10 实案：证书丢失后静默回退未被察觉，用户每次启动重新授权辅助功能）"
   codesign --sign - --force --timestamp=none "${APP}"
 fi
 

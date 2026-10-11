@@ -50,6 +50,21 @@ extension AppSettings {
         set { defaults.set(newValue, forKey: Key.soundEffects) }
     }
 
+    /// 请求日志（2026-10-10 用户裁决，默认开）：ASR/LLM 外发请求参数记录到数据目录
+    /// request-log.jsonl（API Key 恒脱敏、音频只记元数据、5MB 轮转）。关 = 停止新增
+    /// 写入（已有文件保留，数据文件夹手动删）。RequestLog 每次写入现读本值，即时生效。
+    var requestLogEnabled: Bool {
+        get { bool(Key.requestLogEnabled, default: true) }
+        set { defaults.set(newValue, forKey: Key.requestLogEnabled) }
+    }
+
+    /// 省时估算的手打速度（TASK-133，默认 40 字/分钟）：getter 10–200 钳制
+    /// （越界回边界值，非法/未写回默认）——省时横幅输入框的持久值。
+    var statsTypingSpeed: Int {
+        get { min(200, max(10, int(Key.statsTypingSpeed, default: 40))) }
+        set { defaults.set(newValue, forKey: Key.statsTypingSpeed) }
+    }
+
     /// 所选效果音（TASK-075 / 用户裁决：默认 Blip）。存储串 = EffectSound.rawValue
     /// （文件名，message 为小写开头）；非法/未存回退默认（沿 hotkeyMode 模式）。
     var soundEffect: EffectSound {
@@ -57,14 +72,12 @@ extension AppSettings {
         set { defaults.set(newValue.rawValue, forKey: Key.soundEffect) }
     }
 
-    var autoCopyClipboard: Bool {
-        get { bool(Key.autoCopyClipboard, default: true) }
-        set { defaults.set(newValue, forKey: Key.autoCopyClipboard) }
-    }
-
-    /// 文本输入方式，v1 固定 "paste"（设置页只读展示，无 setter）。
-    var textInputMethod: String {
-        string(Key.textInputMethod, default: "paste")
+    /// 文本输入方法（TASK-126，用户裁决模仿参考 App）：粘贴×4 布局键位 + 模拟按键。
+    /// 非法/未存回退 .paste（沿 hotkeyMode 模式）。自动复制剪贴板已锁定常开（同任务
+    /// 用户裁决：模拟按键模式也写剪贴板），autoCopyClipboard 属性随之退役。
+    var textInputMethod: TextInputMethod {
+        get { TextInputMethod(rawValue: string(Key.textInputMethod, default: "")) ?? .paste }
+        set { defaults.set(newValue.rawValue, forKey: Key.textInputMethod) }
     }
 
     var escCancelsRecording: Bool {

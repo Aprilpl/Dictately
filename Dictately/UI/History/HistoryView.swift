@@ -552,7 +552,11 @@ struct EntryRow: View {
                         }
                     }
                     if !isSelectMode {
-                        StatusMark(isOK: entry.status != .failed)
+                        // cancelled（TASK-130）：无 ✓/⚠——非成非败，状态由元信息行的
+                        //「已取消」chip 承担（绿色 ✓ 会与「已取消」语义矛盾）
+                        if entry.status != .cancelled {
+                            StatusMark(isOK: entry.status != .failed)
+                        }
                     }
                 }
             }
@@ -606,7 +610,8 @@ struct EntryRow: View {
     }
 
     /// 诊断 chip（2026-10-03 裁决：「已粘贴」不展示——成功+已粘贴为最常见态，不再显 chip；
-    /// 仅保留罕见诊断态：已复制(中性)/已回退粘贴原文(橙)/音频已保留(橙)）。
+    /// 仅保留罕见诊断态：已复制(中性)/已回退粘贴原文(橙)/音频已保留(橙)；
+    /// 已取消(中性，TASK-130)：Esc 中断的条目——音频/转写保留，可重新转写/重新生成）。
     @ViewBuilder
     private var statusChip: some View {
         switch (entry.status, entry.pasted) {
@@ -616,6 +621,8 @@ struct EntryRow: View {
             Chip(text: String(localized: "history.copiedOnly"), tone: .neutral)
         case (.failed, true):
             Chip(text: String(localized: "history.fallbackPasted"), tone: .orange)
+        case (.cancelled, _):
+            Chip(text: String(localized: "history.cancelled"), tone: .neutral)
         default:
             Chip(text: String(localized: "history.audioKept"), tone: .orange)
         }

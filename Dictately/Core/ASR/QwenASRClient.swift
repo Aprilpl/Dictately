@@ -14,19 +14,34 @@ final class QwenASRClient: ASREngine {
     static let encodedSizeLimitBytes = 10 * 1024 * 1024
 
     private let session: URLSession
+    /// 请求日志（nil = 不记录：单测默认形态；生产由 AppEnvironment 注入）。
+    private let requestLog: RequestLog?
 
     /// session 注入供 URLProtocol stub 单测；生产用共享工厂（`NetworkSessionFactory`，
     /// PRD §4 超时预算 request 60s / resource 120s）。
-    init(session: URLSession = NetworkSessionFactory.make()) {
+    init(session: URLSession = NetworkSessionFactory.make(), requestLog: RequestLog? = nil) {
         self.session = session
+        self.requestLog = requestLog
     }
 
     func transcribe(audioFileAt url: URL, config: ASRConfig) async throws -> ASRTranscript {
         // 0. 空 Key 本地拦截（读文件前）：不发空 Bearer 让服务端 401 兜底——「未配置」与「无效」分开报
-        guard !config.apiKey.isEmpty else { throw ASRError.missingApiKey }
+        guard !config.apiKey.isEmpty else {
+            requestLog?.append(.rejected(
+                kind: .asrQwen, purpose: .transcribe,
+                url: config.endpoint.absoluteString,
+                error: "missingApiKey（本地拦截，未发请求）"))
+            throw ASRError.missingApiKey
+        }
         // 0b. scheme 兜底（读文件前）：与 LLM 客户端对称——绕过 UI 的配置
         //     不让 Bearer Key 随非 http(s) scheme 外发（http 为 custom 端点例外）
-        guard config.isHTTPScheme else { throw ASRError.invalidBaseURL }
+        guard config.isHTTPScheme else {
+            requestLog?.append(.rejected(
+                kind: .asrQwen, purpose: .transcribe,
+                url: config.endpoint.absoluteString,
+                error: "invalidBaseURL（本地拦截，未发请求）"))
+            throw ASRError.invalidBaseURL
+        }
 
         // 1. 读文件 + 体积预判（Base64 膨胀 4/3）
         let fileData: Data
@@ -35,9 +50,18 @@ final class QwenASRClient: ASREngine {
         } catch {
             // §11 存储表：音频已清理 → 不可重跑；归 badRequest 携带原因
             //（上游 UI 对音频缺失条目另有「音频已过期清理」禁用态，不走本错误）。
+            requestLog?.append(.rejected(
+                kind: .asrQwen, purpose: .transcribe,
+                url: config.endpoint.absoluteString,
+                error: "音频文件读取失败：\(error.localizedDescription)"))
             throw ASRError.badRequest("音频文件读取失败：\(error.localizedDescription)")
         }
         guard fileData.count * 4 / 3 <= Self.encodedSizeLimitBytes else {
+            requestLog?.append(.rejected(
+                kind: .asrQwen, purpose: .transcribe,
+                url: config.endpoint.absoluteString,
+                request: ["audio": ["bytes": fileData.count] as [String: Any]],
+                error: "audioTooLarge（编码后 \(fileData.count * 4 / 3) 字节 > 上限）"))
             throw ASRError.audioTooLarge
         }
 
@@ -58,12 +82,41 @@ final class QwenASRClient: ASREngine {
         )
         let bodyData = try JSONEncoder().encode(requestBody)
 
+        // 请求日志形态的请求体：参数与上方 RequestBody 逐字段镜像（音频只记元数据，
+        // 不记 base64——一次录音的 base64 即 1–2MB，落盘日志即爆炸）；改参数两处同步。
+        var loggedParameters: [String: Any] = [
+            "format": config.audioFormat.parameterFormat,
+            "sample_rate": "16000",
+        ]
+        if !config.languageHints.isEmpty { loggedParameters["language_hints"] = config.languageHints }
+        if !config.vocabulary.isEmpty { loggedParameters["vocabulary"] = config.vocabulary }
+        if config.keepDialect { loggedParameters["keep_dialect"] = true }
+        let loggedRequest: [String: Any] = [
+            "model": config.model,
+            "parameters": loggedParameters,
+            "audio": [
+                "mime": config.audioFormat == .mp3 ? "audio/mpeg" : "audio/wav",
+                "bytes": fileData.count,
+            ] as [String: Any],
+        ]
+
         var request = URLRequest(url: config.endpoint)
         request.httpMethod = "POST"
         request.httpBody = bodyData
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("disable", forHTTPHeaderField: "X-DashScope-SSE")
+
+        // 请求日志条目（Authorization 脱敏），随请求推进补齐 outcome
+        var log = RequestLog.Entry(
+            kind: .asrQwen,
+            purpose: .transcribe,
+            url: config.endpoint.absoluteString,
+            headers: RequestLog.loggedHeaders(
+                authorization: RequestLog.redactedAuthorization(apiKey: config.apiKey),
+                contentType: "application/json",
+                extra: ["X-DashScope-SSE": "disable"]),
+            request: loggedRequest)
 
         // 3. 发请求（计时覆盖编码后→响应，写 entries.asr_latency_ms）
         let startedAt = Date()
@@ -72,11 +125,32 @@ final class QwenASRClient: ASREngine {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
+            log.latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+            // Esc 中断（TASK-130）：取消抛 CancellationError 而非映射 networkUnreachable
+            // ——否则管道 autoRetryOnce 会二发请求、失败收口会覆盖已取消的面板/条目状态。
+            // 日志照落（§49 每出口必记），outcome 标「已取消」与真实网络错误区分。
+            if error.code == .cancelled {
+                log.error = "已取消（Esc 中断，请求未完成）"
+                requestLog?.append(log)
+                throw CancellationError()
+            }
+            log.error = "网络错误：\(error.localizedDescription)"
+            requestLog?.append(log)
             throw ASRError.map(error)
+        } catch is CancellationError {
+            // Task 协作取消的直接形态（URLSession async 新版可能不经 URLError 包装）
+            log.latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+            log.error = "已取消（Esc 中断，请求未完成）"
+            requestLog?.append(log)
+            throw CancellationError()
         } catch let error as ASRError {
+            log.error = "\(error)"
+            requestLog?.append(log)
             throw error
         }
         let latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+        log.latencyMs = latencyMs
+        if let http = response as? HTTPURLResponse { log.status = http.statusCode }
 
         // 4. 状态码映射（§4 错误映射全表）；4xx/5xx body 均落日志——
         // 401（Key 无效）与 400（请求被拒）的区分只能看 body（2026-10-01 排查教训）
@@ -87,6 +161,9 @@ final class QwenASRClient: ASREngine {
             } else {
                 AppLog.pipeline.error("asr 4xx status=\(http.statusCode, privacy: .public) body=\(summary, privacy: .public)")
             }
+            log.error = "HTTP \(http.statusCode)"
+            log.bodySummary = summary
+            requestLog?.append(log)
             throw ASRError.map(statusCode: http.statusCode, bodySummary: summary)
         }
 
@@ -95,12 +172,29 @@ final class QwenASRClient: ASREngine {
         do {
             decoded = try JSONDecoder().decode(ResponseBody.self, from: data)
         } catch {
-            AppLog.pipeline.error("asr bad response: \(String(decoding: data.prefix(200), as: UTF8.self), privacy: .public)")
+            let summary = String(decoding: data.prefix(200), as: UTF8.self)
+            AppLog.pipeline.error("asr bad response: \(summary, privacy: .public)")
+            log.error = "响应非 JSON"
+            log.bodySummary = summary
+            requestLog?.append(log)
             throw ASRError.badResponse
         }
-        guard let output = decoded.output else { throw ASRError.badResponse }
-        guard let text = output.text else { throw ASRError.badResponse }
-        if text.isEmpty { throw ASRError.emptyResult }
+        guard let output = decoded.output else {
+            log.error = "output 缺失（badResponse）"
+            requestLog?.append(log)
+            throw ASRError.badResponse
+        }
+        guard let text = output.text else {
+            log.error = "text 缺失（badResponse）"
+            requestLog?.append(log)
+            throw ASRError.badResponse
+        }
+        if text.isEmpty {
+            log.error = "text 为空（emptyResult）"
+            requestLog?.append(log)
+            throw ASRError.emptyResult
+        }
+        requestLog?.append(log)
 
         return ASRTranscript(
             text: text,

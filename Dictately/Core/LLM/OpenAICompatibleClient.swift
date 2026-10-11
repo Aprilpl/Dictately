@@ -14,9 +14,12 @@ import Foundation
 /// 非 https baseURL 直接拒绝（invalidBaseURL，§7 安全要求）。
 final class OpenAICompatibleClient: LLMEngine {
     private let session: URLSession
+    /// 请求日志（nil = 不记录：单测默认形态；生产由 AppEnvironment 注入）。
+    private let requestLog: RequestLog?
 
-    init(session: URLSession = NetworkSessionFactory.make()) {
+    init(session: URLSession = NetworkSessionFactory.make(), requestLog: RequestLog? = nil) {
         self.session = session
+        self.requestLog = requestLog
     }
 
     func complete(system: String, user: String, config: LLMConfig) async throws -> LLMResult {
@@ -26,7 +29,7 @@ final class OpenAICompatibleClient: LLMEngine {
             config: config
         )
         let startedAt = Date()
-        let content = try await post(body: body, config: config)
+        let content = try await post(body: body, config: config, purpose: .polish)
         let latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
         return LLMResult(text: content, model: config.model, latencyMs: latencyMs)
     }
@@ -42,7 +45,7 @@ final class OpenAICompatibleClient: LLMEngine {
         // 探测请求 max_tokens=1：服务端常返回空 content（首 token 被截/推理模型全耗在
         // reasoning 上）。连通性只要求 200 + 合法 JSON + choices 非空，不检查内容——
         // 否则把健康连接误报成「润色返回为空」。
-        _ = try await post(body: body, config: config, requireContent: false)
+        _ = try await post(body: body, config: config, requireContent: false, purpose: .test)
         return max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
     }
 
@@ -80,12 +83,28 @@ final class OpenAICompatibleClient: LLMEngine {
         )
     }
 
-    /// - Parameter requireContent: true（正式润色）= content 缺失/空串按错误处理；
-    ///   false（测试连接）= 有合法 choices 即成功。
-    private func post(body: RequestBody, config: LLMConfig, requireContent: Bool = true) async throws -> String {
-        guard config.isHTTPScheme else { throw LLMError.invalidBaseURL }
-
+    /// - Parameters:
+    ///   - requireContent: true（正式润色）= content 缺失/空串按错误处理；
+    ///     false（测试连接）= 有合法 choices 即成功。
+    ///   - purpose: 请求日志用途标签（润色 / 测试连接）。
+    private func post(
+        body: RequestBody,
+        config: LLMConfig,
+        requireContent: Bool = true,
+        purpose: RequestLog.Entry.Purpose
+    ) async throws -> String {
         let bodyData = try JSONEncoder().encode(body)
+        // 请求日志形态的请求体：与实发字节同源（编码后再解回对象，杜绝两套构造漂移）
+        let loggedBody = (try? JSONSerialization.jsonObject(with: bodyData)) as? [String: Any] ?? [:]
+
+        guard config.isHTTPScheme else {
+            requestLog?.append(.rejected(
+                kind: .llm, purpose: purpose,
+                url: config.endpoint.absoluteString, request: loggedBody,
+                error: "invalidBaseURL（本地拦截，未发请求）"))
+            throw LLMError.invalidBaseURL
+        }
+
         var request = URLRequest(url: config.endpoint)
         request.httpMethod = "POST"
         request.httpBody = bodyData
@@ -96,18 +115,51 @@ final class OpenAICompatibleClient: LLMEngine {
             request.setValue(value, forHTTPHeaderField: name)
         }
 
+        // 请求日志条目：Authorization 脱敏（明文 Key 绝不落盘），随请求推进补齐 outcome
+        var log = RequestLog.Entry(
+            kind: .llm,
+            purpose: purpose,
+            url: config.endpoint.absoluteString,
+            headers: RequestLog.loggedHeaders(
+                authorization: RequestLog.redactedAuthorization(apiKey: config.apiKey),
+                contentType: "application/json",
+                extra: config.extraHTTPHeaders),
+            request: loggedBody)
+
         let data: Data
         let response: URLResponse
+        let startedAt = Date()
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
+            log.latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+            // Esc 中断（TASK-130）：取消抛 CancellationError 而非映射 networkUnreachable
+            // ——否则管道 polishWithAutoRetry 会二发、失败收口会覆盖已取消的面板/条目状态
+            if error.code == .cancelled {
+                log.error = "已取消（Esc 中断，请求未完成）"
+                requestLog?.append(log)
+                throw CancellationError()
+            }
+            log.error = "网络错误：\(error.localizedDescription)"
+            requestLog?.append(log)
             throw LLMError.map(error)
+        } catch is CancellationError {
+            log.latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+            log.error = "已取消（Esc 中断，请求未完成）"
+            requestLog?.append(log)
+            throw CancellationError()
         }
+        log.latencyMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
+        if let http = response as? HTTPURLResponse { log.status = http.statusCode }
+
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             // 4xx/5xx 一律落 status + body 摘要（与 ASR 两客户端对齐，AGENTS §8 裁决；
             // 2026-10-02 用户排 OpenCode 400 时实锤 LLM 侧此前只记 5xx 的盲区）
             let summary = String(decoding: data.prefix(200), as: UTF8.self)
             AppLog.pipeline.error("llm http status=\(http.statusCode, privacy: .public) body=\(summary, privacy: .public)")
+            log.bodySummary = summary
+            log.error = "HTTP \(http.statusCode)"
+            requestLog?.append(log)
             throw LLMError.map(statusCode: http.statusCode, bodySummary: summary)
         }
 
@@ -115,13 +167,33 @@ final class OpenAICompatibleClient: LLMEngine {
         do {
             decoded = try JSONDecoder().decode(ResponseBody.self, from: data)
         } catch {
-            AppLog.pipeline.error("llm bad response: \(String(decoding: data.prefix(200), as: UTF8.self), privacy: .public)")
+            let summary = String(decoding: data.prefix(200), as: UTF8.self)
+            AppLog.pipeline.error("llm bad response: \(summary, privacy: .public)")
+            log.error = "响应非 JSON"
+            log.bodySummary = summary
+            requestLog?.append(log)
             throw LLMError.badResponse
         }
-        guard let choices = decoded.choices, !choices.isEmpty else { throw LLMError.emptyResult }
-        if !requireContent { return "" } // 测试连接：服务应答正常即连通
-        guard let content = choices[0].message?.content else { throw LLMError.badResponse }
-        if content.isEmpty { throw LLMError.emptyResult }
+        guard let choices = decoded.choices, !choices.isEmpty else {
+            log.error = "choices 为空（emptyResult）"
+            requestLog?.append(log)
+            throw LLMError.emptyResult
+        }
+        if !requireContent {
+            requestLog?.append(log) // 测试连接：服务应答正常即连通
+            return ""
+        }
+        guard let content = choices[0].message?.content else {
+            log.error = "content 缺失（badResponse）"
+            requestLog?.append(log)
+            throw LLMError.badResponse
+        }
+        if content.isEmpty {
+            log.error = "content 为空（emptyResult）"
+            requestLog?.append(log)
+            throw LLMError.emptyResult
+        }
+        requestLog?.append(log)
         return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

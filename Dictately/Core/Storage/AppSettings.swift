@@ -61,7 +61,10 @@ final class AppSettings {
         static let sidebarLastPage = "sidebarLastPage"
         static let soundEffects = "soundEffects"
         static let soundEffect = "soundEffectName"
-        static let autoCopyClipboard = "autoCopyClipboard"
+        static let requestLogEnabled = "requestLogEnabled"
+        static let statsTypingSpeed = "stats.typingSpeed"
+        // autoCopyClipboard 键随 TASK-126 退役（自动复制锁定常开）——保留在此注释存档，
+        // 不删存量用户机器上的孤儿值（惰性无害）。
         static let textInputMethod = "textInputMethod"
         static let escCancelsRecording = "escCancelsRecording"
         static let muteDuringRecording = "muteDuringRecording"

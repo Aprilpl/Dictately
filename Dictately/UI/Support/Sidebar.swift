@@ -7,7 +7,7 @@ import SwiftUI
 struct Sidebar: View {
     @Binding var selection: RootView.Page
 
-    /// 七项导航（v2-glass Sidebar.items 同键序；原型 nav 行无图标）。
+    /// 八项导航（v2-glass Sidebar.items 键序 + TASK-133 使用统计；原型 nav 行无图标）。
     private let items: [(page: RootView.Page, labelKey: LocalizedStringKey)] = [
         (.general, "sidebar.general"),
         (.models, "sidebar.models"),
@@ -15,6 +15,7 @@ struct Sidebar: View {
         (.prompts, "sidebar.prompts"),
         (.history, "sidebar.history"),
         (.hotkeys, "sidebar.hotkeys"),
+        (.usage, "sidebar.usage"),
         (.about, "sidebar.about"),
     ]
 

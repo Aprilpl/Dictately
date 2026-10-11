@@ -23,7 +23,8 @@ A native macOS dictation tool: press the hotkey in any app, speak, and your word
 **Dictation**
 
 - Start with a **double-tap of right ⌘** by default — the frontmost app keeps focus; trigger mode is switchable (double-tap / hold / toggle) and every hotkey is recordable and customizable
-- The recording HUD floats at the bottom of the **screen your cursor is on**, with a live timer; `Esc` cancels anytime
+- The recording HUD floats at the bottom of the **screen your cursor is on**, with a live timer; `Esc` cancels at any point — recording, transcribing, or polishing
+- Choose how text is delivered: standard paste (`⌘V`, with QWERTY / Colemak / Dvorak / Optimot layout support) or "simulate typing" character-by-character input for fields that refuse pastes; text is always copied to the clipboard as well
 - Accidental-tap guard: recordings shorter than 300 ms are silently discarded instead of sending empty requests
 - Recording cap adjustable from 90–300 seconds (default 240), auto-finishes on timeout
 
@@ -38,8 +39,9 @@ A native macOS dictation tool: press the hotkey in any app, speak, and your word
 **History & reliability**
 
 - Transcripts, polished results, and audio are all stored locally (SQLite), with filtering, search, and multi-select batch delete
-- Failure-friendly: network errors auto-retry once; dictation entries can be re-transcribed, and styled entries regenerated (re-run the polish on the original text)
+- Failure-friendly: network errors auto-retry once; dictation entries can be re-transcribed, and styled entries regenerated — finished transcripts re-run the polish, while unfinished ones automatically re-run transcription from the audio first
 - Recordings left unfinished by a crash are offered for **orphan recovery** on next launch
+- **Usage stats**: entries, duration, character count, speaking speed, and daily averages across today / last 7 days / last 30 days / all time, a dictation-vs-style working-mode breakdown, and a time-saved estimate based on an adjustable typing speed
 
 **Multi-provider BYOK (bring your own key)**
 
@@ -50,14 +52,14 @@ A native macOS dictation tool: press the hotkey in any app, speak, and your word
 **Details**
 
 - Light / dark / auto appearance
-- Optional: start/stop sound effects, system-wide mute while recording, auto-copy to clipboard, menu-bar icon, hiding the Dock icon, launch at login
+- Optional: start/stop sound effects, system-wide mute while recording, API request logging, menu-bar icon, hiding the Dock icon, launch at login
 - No accounts, no analytics, no telemetry
 
 ## Screenshots
 
-| Dictation models (light) | AI services (dark) |
-| :---: | :---: |
-| ![Dictation model settings](Assets/ui-models-light.png) | ![AI service settings](Assets/ui-ai-dark.png) |
+| Dictation models (light) | AI services (dark) | Usage stats (light) |
+| :---: | :---: | :---: |
+| ![Dictation model settings](Assets/ui-models-light.png) | ![AI service settings](Assets/ui-ai-dark.png) | ![Usage stats page](Assets/ui-stats-light.png) |
 
 ## Getting started
 
@@ -109,6 +111,7 @@ Each provider stores its own base URL / model / API key; pick a model from the p
 - **API keys live only in the macOS Keychain**, per provider, and are never uploaded anywhere
 - History and audio stay local: `~/Library/Application Support/Dictately/` (one click to open via General settings → Data folder)
 - Audio retention: 30 days (default) / 90 days / forever
+- Optional **API request log** (on by default, can be disabled in General settings): one line per request with endpoint, latency, and outcome metadata only; **API keys are always redacted**; auto-rotates at 5 MB
 - Apart from the ASR/LLM endpoints you configure, the app makes no outbound network calls
 
 ## Building from source
