@@ -1,0 +1,18 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Dictately</title>
+        <item>
+            <title>0.3.0</title>
+            <pubDate>Wed, 28 Oct 2026 13:03:25 +0800</pubDate>
+            <link>https://github.com/Aprilpl/Dictately/releases</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/Aprilpl/Dictately/releases/tag/v0.3.0</sparkle:fullReleaseNotesLink>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <sparkle:releaseNotesLink>https://raw.githubusercontent.com/Aprilpl/Dictately/main/Dictately-0.3.0-arm64.md</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/Aprilpl/Dictately/releases/download/v0.3.0/Dictately-0.3.0-arm64.zip" length="34617002" type="application/octet-stream" sparkle:edSignature="OC5yeq0F56D8j8awk+BpHY/l+Wi1poS5xTsaYJspVfsKCq+sBRG8G0vtKUZC/b8Gk+evXm+lYBRJ/ekherV/AA=="/>
+        </item>
+    </channel>
+</rss>
