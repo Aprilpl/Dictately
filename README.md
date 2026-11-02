@@ -14,7 +14,7 @@
 
 macOS 原生语音听写工具：在任意 App 里按下快捷键说话，云端或本地离线转写、可选 AI 润色，文字 1–3 秒内自动粘贴到光标处。
 
-![Dictately 演示视频](Assets/promo.mp4)
+![Dictately 演示视频](https://github.com/Aprilpl/Dictately/releases/download/v0.3.1/promo.mp4)
 
 </div>
 
