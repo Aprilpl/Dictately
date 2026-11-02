@@ -14,6 +14,8 @@
 
 macOS 原生语音听写工具：在任意 App 里按下快捷键说话，云端或本地离线转写、可选 AI 润色，文字 1–3 秒内自动粘贴到光标处。
 
+![Dictately 演示视频](Assets/promo.mp4)
+
 </div>
 
 ---
@@ -73,6 +75,8 @@ macOS 原生语音听写工具：在任意 App 里按下快捷键说话，云端
 | ![听写模型 API 页](Assets/ui-models-dark.png) | ![本地离线模型页](Assets/ui-local-models-light.png) | ![AI 服务设置页](Assets/ui-ai-dark.png) |
 | **常规设置（浅色）** | **使用统计（深色）** | **快捷键（深色）** |
 | ![常规设置页](Assets/ui-general-light.png) | ![使用统计页](Assets/ui-stats-dark.png) | ![快捷键页](Assets/ui-hotkeys-dark.png) |
+| **文件转写 · 空状态（浅色）** | **文件转写 · AI 总结（浅色）** | **AI 总结设置（浅色）** |
+| ![文件转写空状态](Assets/ui-transcribe-empty-light.png) | ![文件转写与 AI 总结](Assets/ui-transcribe-light.png) | ![AI 总结设置](Assets/ui-summary-settings-light.png) |
 
 ## 下载安装
 

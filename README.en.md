@@ -14,6 +14,8 @@ English · [简体中文](README.md)
 
 A native macOS dictation tool: press the hotkey in any app, speak, and your words are transcribed in the cloud or locally on-device, optionally AI-polished, and pasted at your cursor within 1–3 seconds.
 
+![Dictately demo video](Assets/promo.mp4)
+
 </div>
 
 ---
@@ -73,6 +75,8 @@ A native macOS dictation tool: press the hotkey in any app, speak, and your word
 | ![Dictation models, API tab](Assets/ui-models-dark.png) | ![Local offline models page](Assets/ui-local-models-light.png) | ![AI service settings](Assets/ui-ai-dark.png) |
 | **General (light)** | **Usage stats (dark)** | **Hotkeys (dark)** |
 | ![General settings](Assets/ui-general-light.png) | ![Usage stats page](Assets/ui-stats-dark.png) | ![Hotkeys page](Assets/ui-hotkeys-dark.png) |
+| **File transcription · Empty state (light)** | **File transcription · AI summary (light)** | **Summary settings (light)** |
+| ![File transcription, empty state](Assets/ui-transcribe-empty-light.png) | ![File transcription with AI summary](Assets/ui-transcribe-light.png) | ![AI summary settings](Assets/ui-summary-settings-light.png) |
 
 ## Getting started
 

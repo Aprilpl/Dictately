@@ -72,6 +72,8 @@ struct FileTranscribeView: View {
     /// 并排双栏（左工作台弹性 × 右 300 面板）。空拖放态两卡**等高**
     /// （2026-10-24 用户追裁：初始两框长度一样——maxHeight ∞ + 竖向 fixedSize
     /// 取两卡较高者为准，短卡撑满）；其余态右栏保持自然高度（图3 形态）。
+    /// 生效前提：右栏面板 body 内侧须有高度弹性 frame（TASK-165）——
+    /// 此处的调用侧 frame 在 background 外侧，单独存在只会居中一个矮卡。
     @ViewBuilder
     private var columnsSideBySide: some View {
         if isFreshEmptyWorkbench {

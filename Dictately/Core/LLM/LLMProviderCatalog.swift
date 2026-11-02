@@ -116,20 +116,22 @@ extension AppSettings.LLMProvider: ProviderBaseURLValidating {
         }
     }
 
-    /// 卡片与二级页标题显示名。
-    var displayName: String {
-        String(localized: String.LocalizationValue("settings.llm.provider.\(rawValue)"))
+    /// 动态键查表（§90）：rawValue 插值不能传给 String(localized:) / 
+    /// String.LocalizationValue——插值会被转成格式串占位符，查找键成
+    /// `settings.llm.provider.%@` 必落空（TASK-159 第五批两页供应商卡全显原始
+    /// 键样文本即此坑）。先拼全键再经 AppResources.bundle 查表；查不到回退键本身。
+    private func localizedProvider(_ key: String) -> String {
+        AppResources.bundle.localizedString(forKey: key, value: nil, table: nil)
     }
+
+    /// 卡片与二级页标题显示名。
+    var displayName: String { localizedProvider("settings.llm.provider.\(rawValue)") }
 
     /// 一级卡片描述行。
-    var cardDescription: String {
-        String(localized: String.LocalizationValue("settings.llm.provider.\(rawValue).desc"))
-    }
+    var cardDescription: String { localizedProvider("settings.llm.provider.\(rawValue).desc") }
 
     /// 二级页 Base URL 行 hint（各家端点说明：双端点/无需 /v1 等，来自 docs/LLMDocs）。
-    var baseURLHint: String {
-        String(localized: String.LocalizationValue("settings.llm.provider.\(rawValue).urlhint"))
-    }
+    var baseURLHint: String { localizedProvider("settings.llm.provider.\(rawValue).urlhint") }
 
     /// 新装默认端点（custom 空 = 必须手填）。
     var defaultBaseURL: String { metadata.defaultBaseURL }

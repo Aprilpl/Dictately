@@ -99,20 +99,22 @@ extension AppSettings.ASRProvider: ProviderBaseURLValidating {
         }
     }
 
-    /// 卡片与二级页标题显示名。
-    var displayName: String {
-        String(localized: String.LocalizationValue("models.provider.\(rawValue)"))
+    /// 动态键查表（§90）：rawValue 插值不能传给 String(localized:) / 
+    /// String.LocalizationValue——插值会被转成格式串占位符，查找键成
+    /// `models.provider.%@` 必落空（TASK-159 第五批两页供应商卡全显原始键样
+    /// 文本即此坑）。先拼全键再经 AppResources.bundle 查表；查不到回退键本身。
+    private func localizedProvider(_ key: String) -> String {
+        AppResources.bundle.localizedString(forKey: key, value: nil, table: nil)
     }
+
+    /// 卡片与二级页标题显示名。
+    var displayName: String { localizedProvider("models.provider.\(rawValue)") }
 
     /// 一级卡片描述行。
-    var cardDescription: String {
-        String(localized: String.LocalizationValue("models.provider.\(rawValue).desc"))
-    }
+    var cardDescription: String { localizedProvider("models.provider.\(rawValue).desc") }
 
     /// 二级页 Base URL 行 hint（各家端点说明，来自 docs/LLMDocs）。
-    var baseURLHint: String {
-        String(localized: String.LocalizationValue("models.provider.\(rawValue).urlhint"))
-    }
+    var baseURLHint: String { localizedProvider("models.provider.\(rawValue).urlhint") }
 
     /// 新装默认端点（custom 空 = 必须手填）。
     var defaultBaseURL: String { metadata.defaultBaseURL }

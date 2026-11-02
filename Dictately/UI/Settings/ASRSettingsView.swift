@@ -59,12 +59,14 @@ struct ASRSettingsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 // 引擎状态条（2026-10-11 原型定稿上移：分段上方、两分支共享；
-                // 本地引擎亮蓝高亮，右端内存监控仅本地 Tab 显示）
+                // 本地引擎亮蓝高亮，右端内存监控仅本地 Tab 显示；
+                // TASK-165：未配置态（engine=api 且当前供应商无 Key、本地未激活）整条隐藏）
                 EngineStatusBar(
                     engineMode: engineMode,
                     activeLocalModelID: activeLocalModelID,
                     currentProvider: currentProvider,
                     isLocalTab: displayedMode == .local,
+                    keyConfigured: keyStates[currentProvider] ?? false,
                     onUnload: { environment.localSession.unload() })
                 // TASK-142（bench 原型 tabrow）：分段旁 rangeline 提示行，随分支切换
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
@@ -343,6 +345,8 @@ struct ASRSettingsView: View {
 /// 「当前听写引擎」状态条——engine 唯一仲裁「使用中」互斥：engine=local 显本地
 /// 模型（亮蓝高亮 + 蓝点脉冲），否则显 API 供应商/模型（中性灰 + 离线引导 hint）。
 /// 本地 Tab 右端追加资源监控（worker 进程 CPU · 内存；未加载显灰色占位）。
+/// 显示门槛（TASK-165）：本地引擎激活，或 API 引擎且当前供应商已配 Key——
+/// 新装零配置态整条隐藏，不出现绿色「API · 默认模型」的假在线提示。
 private struct EngineStatusBar: View {
     @Environment(AppEnvironment.self) private var environment
 
@@ -350,6 +354,8 @@ private struct EngineStatusBar: View {
     let activeLocalModelID: String?
     let currentProvider: AppSettings.ASRProvider
     let isLocalTab: Bool
+    /// 当前供应商 Key 是否已配置（调用处传 keyStates 镜像，随 onAppear/二级页返回刷新）。
+    let keyConfigured: Bool
     /// 「卸载」按钮回调（仅释放内存；引擎与 activeLocalModel 不动——用户裁决 2026-10-11）。
     var onUnload: () -> Void = {}
 
@@ -360,7 +366,19 @@ private struct EngineStatusBar: View {
         return engineMode == .local
     }
 
+    /// 本地引擎激活，或 API 引擎且当前供应商已配 Key；否则无可报告的引擎状态
+    /// （含 engine=local 但活跃模型已删的残态——此前会错显绿色 API 分支）。
+    private var showsEngineState: Bool {
+        localOn || (engineMode == .api && keyConfigured)
+    }
+
     var body: some View {
+        if showsEngineState {
+            bar
+        }
+    }
+
+    private var bar: some View {
         HStack(spacing: 14) {
             Text("models.local.stat.label")
                 .font(.system(size: 12.5))

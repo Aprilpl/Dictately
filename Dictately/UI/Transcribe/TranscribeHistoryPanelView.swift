@@ -25,7 +25,8 @@ struct TranscribeHistoryPanelView: View {
                 Text("transcribe.panel.empty")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.text3)
-                    .frame(maxWidth: .infinity)
+                    // 空态等高（TASK-165）：撑满剩余高度让文案垂直居中，与左卡拖放区居中形态呼应
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.vertical, 26)
             } else {
                 ScrollView(.vertical) {
@@ -41,6 +42,11 @@ struct TranscribeHistoryPanelView: View {
                 .frame(maxHeight: 520)
             }
         }
+        // 内侧高度弹性（TASK-165，§76 追裁二机制修正）：空态等高分支的提案要能
+        // 传进 background 内侧，可见卡片才撑得满——弹性 frame 加在调用处（background
+        // 外侧）只会得到一个隐形高框居中矮卡。nil 提案（其余态/堆叠态）仍报理想高，
+        // 右栏自然高不变。
+        .frame(maxHeight: .infinity, alignment: .top)
         .padding(12)
         .frame(width: 300, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fillSoft))

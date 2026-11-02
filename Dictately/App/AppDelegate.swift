@@ -7,11 +7,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let environment = AppEnvironment()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        // 单实例防线（TASK-169，§95 追裁）：聚焦/访达打开另一路径副本时，LaunchServices
+        // 不激活运行中的 UIElement 实例而是拉起第二进程（双 Dock 图标根因）——新实例托付
+        // 退出；必须最先执行（早于状态栏/热键/Keychain 预热，亡实例零副作用）。
+        if SingleInstanceGuard.shouldDefer(
+            hasOtherRunningInstance: SingleInstanceGuard.otherRunningInstance() != nil,
+            allowMultiInstance: SingleInstanceGuard.allowMultiInstance
+        ) {
+            SingleInstanceGuard.deferToExistingInstance()
+            return
+        }
         // CLT/SPM 裸可执行文件默认是 .proactive（无 Dock/菜单栏），提升为常规 App；
         // 从 .app bundle 启动时同样无害。用户关闭「在程序坞中显示」（TASK-076）→
         // accessory 常驻形态（无 Dock 图标/无应用菜单栏，状态栏图标为常驻入口）。
         // willFinishLaunching 阶段设置，Dock 图标不闪现。
-        NSApp.setActivationPolicy(environment.settings.showInDock ? .regular : .accessory)
+        applyDockActivationPolicy(reason: "launch")
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -43,6 +53,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(appDidBecomeActive),
             name: NSApplication.didBecomeActiveNotification, object: nil)
+
+        // 单实例托付落点（TASK-169）：另一副本启动时经分布式通知呼出主窗；
+        // 入口仍走 WindowRouter（§18 唯一路由，分布式通知仅作跨进程递送通道）。
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(didReceiveReopenRequest),
+            name: Notification.Name(SingleInstanceGuard.reopenNotificationName), object: nil)
 
         startPanelDebugDemoIfRequested()
         // Debug 专用自动化入口须整体门控（Release 编译无 DEBUG 宏，漏包即断发布构建——
@@ -135,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Theme.applyAppearance(AppSettings.Appearance(rawValue: raw) ?? .system)
         case "showInDock":
             let show = (change?[.newKey] as? Bool) ?? true
-            NSApp.setActivationPolicy(show ? .regular : .accessory)
+            applyDockActivationPolicy(reason: "setting")
             // 切回 .regular 后拉前台：accessory 形态点不到 Dock，需把主窗口带回焦点
             if show { NSApp.activate(ignoringOtherApps: true) }
         case "showStatusBarIcon":
@@ -143,6 +159,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default:
             break
         }
+    }
+
+    // MARK: - Dock 图标收敛（TASK-168，§95：showInDock 唯一事实源）
+
+    /// 把 activationPolicy 收敛到 DockPolicy.target：≠ 目标才动作，修复必留日志取证
+    /// （「聚焦呼出→图标滞留程序坞」根因 = 系统把运行中 App 翻回 .regular 后无人拉回）。
+    /// 启动 / 设置切换 / reopen / 激活四路径共用。
+    private func applyDockActivationPolicy(reason: String) {
+        let target = DockPolicy.target(showInDock: environment.settings.showInDock)
+        guard NSApp.activationPolicy() != target else { return }
+        NSApp.setActivationPolicy(target)
+        AppLog.app.notice(
+            "activation policy -> \(target == .regular ? "regular" : "accessory", privacy: .public) (reason: \(reason, privacy: .public))"
+        )
+    }
+
+    /// 0.5s 后复核一次（新激活重排、可取消）：兜住系统翻转晚于 didBecomeActive 通知的竞态。
+    private var dockPolicyRecheck: DispatchWorkItem?
+
+    private func scheduleDockPolicyRecheck() {
+        dockPolicyRecheck?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.applyDockActivationPolicy(reason: "recheck")
+        }
+        dockPolicyRecheck = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: item)
     }
 
     // MARK: - 权限看守（首启授权后热键自愈）
@@ -170,6 +212,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 回前台重查权限（与看守 timer 互补：tap 运行后看守自毁，本观察者常驻）。
     @objc private func appDidBecomeActive() {
         environment.permissions.refresh()
+        // Dock 收敛（TASK-168，§95）：激活时机立即拉回 + 0.5s 复核兜底时序竞态。
+        applyDockActivationPolicy(reason: "didBecomeActive")
+        scheduleDockPolicyRecheck()
+    }
+
+    /// 另一副本的单实例托付（TASK-169）：呼出主窗（WindowRouter 唯一入口）。
+    @objc private func didReceiveReopenRequest() {
+        environment.windowRouter.openMain()
+    }
+
+    /// 聚焦/访达/Dock 再次打开**运行中**实例（TASK-168，§95）：无可见窗口 → 经 router
+    /// 显式呼出主窗（不再依赖 SwiftUI 隐式 reopen，openWindow 幂等不冲突）；无论何时都
+    /// 收敛 activationPolicy——本 App 无 LSUIElement 声明，系统会把「打开运行中 App」按
+    /// 常规应用处理并翻回 .regular（Dock 图标重现根因）；已激活状态下再次打开不走
+    /// didBecomeActive，此路径必须自收敛。return true 保留系统默认 reopen 链路。
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { environment.windowRouter.openMain() }
+        applyDockActivationPolicy(reason: "reopen")
+        return true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

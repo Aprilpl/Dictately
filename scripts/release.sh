@@ -5,8 +5,19 @@
 # EdDSA 签名进 appcast）+ 仓库根 appcast.xml（提交入库，经公开快照发布到
 # raw.githubusercontent.com——SUFeedURL 指向处）。
 # 前置：Info.plist 版本已手写更新（单一事实源）+ 已提交并打 tag v<版本>。
-# 用法: ./scripts/release.sh
+# 用法: ./scripts/release.sh [--no-gh]
+#   --no-gh  跳过末尾 gh release create——§89 发布顺序：先推公开快照 + tag 再建
+#            Release（gh 对远端缺失的 tag 会把 Release 错锚到默认分支头），
+#            快照推送后手动 `gh release create <tag> …` 补上。
 set -euo pipefail
+
+NO_GH=0
+for arg in "$@"; do
+  case "$arg" in
+    --no-gh) NO_GH=1 ;;
+    *) echo "✗ 未知参数 $arg（支持：--no-gh）"; exit 1 ;;
+  esac
+done
 
 cd "$(dirname "$0")/.."
 APP="build/Dictately.app"
@@ -24,6 +35,28 @@ echo "→ 发布 ${TAG}（Info.plist 版本 ${VERSION}）"
 
 # ── 构建（§42：发布构建 = Release，收尾刷回 Debug）────────────────────────
 ./scripts/build.sh Release
+
+# ── 签名身份闸门（§94：签名证书指纹必须与 p12 备份登记一致，否则硬失败）──────
+# 防的是「证书被重建/误导入后无声换身份发版」——那会让全体用户升级时权限作废
+# 重授一轮（0.2.0→0.3.0 事故）。恢复路径见 docs/release.md「签名证书身份」。
+IDENTITY_FILE="$HOME/DictatelySigningIdentity/signing-identity.sha1"
+if [ ! -f "$IDENTITY_FILE" ]; then
+  echo "✗ 缺签名身份登记文件 $IDENTITY_FILE"
+  echo "  按 docs/release.md「签名证书身份」章节：p12 备份 + 指纹登记后再发版"
+  exit 1
+fi
+EXPECTED_FP="$(head -1 "$IDENTITY_FILE" | tr -d ' :rn' | tr 'A-F' 'a-f')"
+ACTUAL_FP="$(codesign -d -r- "$APP" 2>/dev/null | sed -n 's/.*certificate leaf = H"\([0-9a-f]*\)".*/\1/p' | head -1)"
+if [ -z "$ACTUAL_FP" ]; then
+  echo "✗ 无法读取 $APP 的签名证书指纹（签名缺失或 ad-hoc 回退）——先修复签名再发版"
+  exit 1
+fi
+if [ "$ACTUAL_FP" != "$EXPECTED_FP" ]; then
+  echo "✗ 签名身份与登记不一致（期望 $EXPECTED_FP，实际 $ACTUAL_FP）"
+  echo "  证书被重建或导入错误。按 docs/release.md「签名证书身份」恢复 .p12 身份，勿直接发版"
+  exit 1
+fi
+echo "✓ 签名身份闸门通过：$ACTUAL_FP"
 
 # DMG（人工安装通道，命名/布局见 package-dmg.sh）
 ./scripts/package-dmg.sh
@@ -62,7 +95,9 @@ cp dist/sparkle/appcast.xml appcast.xml
 echo "✓ appcast.xml 已更新（仓库根，待提交）"
 
 # ── GitHub Release（资产名 = 文件名，与 appcast 下载 URL 一致）─────────────
-if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+if [ "$NO_GH" = "1" ]; then
+  echo "→ --no-gh：跳过 gh release create（先推快照 + tag，再手动建 Release，§89）"
+elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   NOTES_ARGS=(--generate-notes)
   [ -f "dist/release-notes-v${VERSION}.md" ] && NOTES_ARGS=(--notes-file "dist/release-notes-v${VERSION}.md")
   echo "→ gh release create ${TAG}"
