@@ -12,7 +12,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <sparkle:releaseNotesLink>https://raw.githubusercontent.com/Aprilpl/Dictately/main/Dictately-0.3.1-arm64.md</sparkle:releaseNotesLink>
-            <enclosure url="https://github.com/Aprilpl/Dictately/releases/download/v0.3.1/Dictately-0.3.1-arm64.zip" length="34620595" type="application/octet-stream" sparkle:edSignature="TCrMnD7RW/TWv2JdbW4KskcNLHc1R+f0e1hps5EBy0sfsisA79xcuBEFBumsk/PyBvw2XsRZzDbJZA8oWvV8AQ=="/>
+            <enclosure url="https://github.com/Aprilpl/Dictately/releases/download/v0.3.1/Dictately-0.3.1-arm64.zip" length="34621489" type="application/octet-stream" sparkle:edSignature="3sks8Z/1IJvejCXY61kGjj5JvN/VTtJhAgosVu2kCrIKIBkhATX5QzIcnIU9sto4xBgEBXxaOWtivTXTbhWNDA=="/>
         </item>
     </channel>
 </rss>
