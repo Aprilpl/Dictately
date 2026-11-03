@@ -223,14 +223,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// 聚焦/访达/Dock 再次打开**运行中**实例（TASK-168，§95）：无可见窗口 → 经 router
-    /// 显式呼出主窗（不再依赖 SwiftUI 隐式 reopen，openWindow 幂等不冲突）；无论何时都
-    /// 收敛 activationPolicy——本 App 无 LSUIElement 声明，系统会把「打开运行中 App」按
-    /// 常规应用处理并翻回 .regular（Dock 图标重现根因）；已激活状态下再次打开不走
-    /// didBecomeActive，此路径必须自收敛。return true 保留系统默认 reopen 链路。
+    /// 显式呼出主窗（不再依赖 SwiftUI 隐式 reopen）；无论何时都收敛 activationPolicy——
+    /// 本 App 无 LSUIElement 声明，系统会把「打开运行中 App」按常规应用处理并翻回
+    /// .regular（Dock 图标重现根因）；已激活状态下再次打开不走 didBecomeActive，
+    /// 此路径必须自收敛。
+    ///
+    /// TASK-171（§97）：开窗与返真值**互斥**——TASK-168 同时做两件事（显式 openMain +
+    /// return true），一次打开被系统再计一次隐式 reopen → 两个相同窗口（实测复现）。
+    /// 现在统一由 `WindowRouter.surfaceMainWindow()` 把主窗带到前台（最小化还原、
+    /// 跨 Space 拉回、已存在只前置），并固定 return false：系统的隐式 reopen 既不还原
+    /// 最小化窗口、也不保证换 Space，还会与显式开窗叠加。
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { environment.windowRouter.openMain() }
         applyDockActivationPolicy(reason: "reopen")
-        return true
+        environment.windowRouter.surfaceMainWindow()
+        return false
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

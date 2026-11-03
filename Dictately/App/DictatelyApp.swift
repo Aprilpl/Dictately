@@ -9,7 +9,13 @@ struct DictatelyApp: App {
     var body: some Scene {
         // 统一主窗口（2026-10-01 对齐 v2-glass AppShell：设置内嵌主窗口七页导航；
         // 默认标题栏显示「Dictately」，原型 RayWindow 同款）
-        WindowGroup("Dictately", id: "main") {
+        //
+        // 单窗口场景（TASK-171，§97）：主窗口设计上只有一个，必须用 `Window` 而非
+        // `WindowGroup`——`WindowGroup` 是多窗口场景，`openWindow(id:)` 每调用一次就
+        // 新建一个窗口（实测标识 main-AppWindow-1 → -2），⌘, / 状态栏「打开主窗口」/
+        // 单实例托付通知全部会叠窗；`Window` 场景下同一 id 恒幂等（已有窗口只前置）。
+        // 勿改回 WindowGroup（MainWindowSceneTests 有源码守卫）。
+        Window("Dictately", id: WindowRouter.mainWindowID) {
             RootView()
                 .environment(environment)
                 .onAppear { maybeShowOnboarding() }
