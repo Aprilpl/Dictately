@@ -14,7 +14,11 @@ English · [简体中文](README.md)
 
 A native macOS dictation tool: press the hotkey in any app, speak, and your words are transcribed in the cloud or locally on-device, optionally AI-polished, and pasted at your cursor within 1–3 seconds.
 
-[![Dictately demo video (click to play)](Assets/promo-cover.png)](https://github.com/Aprilpl/Dictately/blob/main/Assets/promo.mp4)
+<video src="https://github.com/user-attachments/assets/6281fd20-11fa-40e6-acd2-44096611b305" width="800" controls>
+  <a href="https://github.com/Aprilpl/Dictately/blob/main/Assets/promo.mp4">▶ Watch the demo</a>
+</video>
+
+<sub>Video not loading? <a href="https://github.com/Aprilpl/Dictately/blob/main/Assets/promo.mp4">Download the original (16 MB)</a></sub>
 
 </div>
 
