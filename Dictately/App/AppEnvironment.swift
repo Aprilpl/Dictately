@@ -116,7 +116,9 @@ final class AppEnvironment {
 
         // 请求日志先于引擎初始化（三客户端注入共用）；enabled 每次写入现读——
         // 设置页开关即时生效，沿 SoundFeedback.isEnabled 先例
-        let requestLog = RequestLog(enabled: { [weak settings] in settings?.requestLogEnabled ?? true })
+        let requestLog = RequestLog(
+            enabled: { [weak settings] in settings?.requestLogEnabled ?? true },
+            fullBody: { [weak settings] in settings?.requestLogFullBody ?? false })
         self.requestLog = requestLog
         // 本地听写模型三件套（TASK-134）：数据目录 = 数据库同级（模型/venv 不进 .app）
         let dataRoot = AppDatabase.defaultPath().deletingLastPathComponent()
@@ -206,8 +208,10 @@ final class AppEnvironment {
         let recorderRef = recorder
         panelController.levelSampler = { [weak recorderRef] in recorderRef?.currentLevel }
 
-        // 音频保留清理（FR-018/TASK-035）：audioStore 就绪后后台执行，只删文件不动行
-        Self.scheduleAudioRetentionCleanup(settings: settings, entries: entryRepository, audioStore: audioStore)
+        // 音频保留清理（FR-018/TASK-035；TASK-186 起包含文件转写导入音频）
+        Self.scheduleAudioRetentionCleanup(
+            settings: settings, entries: entryRepository,
+            fileTranscripts: fileTranscriptRepository, audioStore: audioStore)
 
         self.hotkeyEngine = HotkeyEngine(
             modeProvider: { [weak settings] in
@@ -363,17 +367,25 @@ final class AppEnvironment {
 
     /// 后台清理过期音频：retentionDays=0 永久保留跳过；失败仅日志。
     private static func scheduleAudioRetentionCleanup(
-        settings: AppSettings, entries: EntryRepository, audioStore: AudioFileStore
+        settings: AppSettings, entries: EntryRepository,
+        fileTranscripts: FileTranscriptRepository, audioStore: AudioFileStore
     ) {
         let days = settings.audioRetentionDays
         guard days > 0 else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
         Task.detached {
             do {
-                let stale = try entries.audioPathsOfStaleSuccessEntries(olderThan: cutoff)
-                guard !stale.isEmpty else { return }
-                let removed = audioStore.cleanupExpiredAudio(paths: stale)
-                AppLog.audio.notice("retention cleanup: \(removed.count, privacy: .public) expired audio files removed (retention=\(days, privacy: .public)d)")
+                let staleEntries = try entries.audioPathsOfStaleSuccessEntries(olderThan: cutoff)
+                // TASK-186：文件转写导入音频同规则；清理后把行 audioPath 置 nil，
+                // 避免 UI/重试引用已删文件（失败条目音频保留，不受保留期限制）。
+                let staleTranscripts = try fileTranscripts
+                    .audioPathsOfStaleSucceededEntries(olderThan: cutoff)
+                let removedEntries = audioStore.cleanupExpiredAudio(paths: staleEntries)
+                let removedTranscripts = audioStore.cleanupExpiredAudio(
+                    paths: staleTranscripts.map(\.path))
+                try fileTranscripts.clearAudioPaths(ids: staleTranscripts.map(\.id))
+                guard !removedEntries.isEmpty || !removedTranscripts.isEmpty else { return }
+                AppLog.audio.notice("retention cleanup: \(removedEntries.count, privacy: .public) dictation + \(removedTranscripts.count, privacy: .public) file-transcript audio removed (retention=\(days, privacy: .public)d)")
             } catch {
                 AppLog.audio.error("retention cleanup failed: \(String(describing: error), privacy: .public)")
             }

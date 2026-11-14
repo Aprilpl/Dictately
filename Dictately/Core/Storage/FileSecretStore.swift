@@ -17,7 +17,8 @@ final class FileSecretStore: SecretStore {
     /// directory 参数化便于测试隔离；生产用 `~/Library/Application Support/Dictately/`。
     init(directory: URL? = nil) throws {
         let dir = directory ?? Self.defaultDirectory
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // TASK-181：目录 0700（secrets.json 自身仍写后收紧 0600）。
+        FilePermissions.ensureOwnerOnlyDirectory(dir)
         fileURL = dir.appendingPathComponent("secrets.json")
     }
 

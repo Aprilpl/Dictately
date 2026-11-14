@@ -124,8 +124,17 @@ struct LLMConfig: Equatable {
     /// `x-opencode-session`——Go 直连缺失即 400 MissingSessionID（LLMDocs 实测）；
     /// Zen 端点忽略多余头，一并携带作客户端会话标识。
     var extraHTTPHeaders: [String: String] {
-        guard baseURL.host?.hasSuffix("opencode.ai") == true, !opencodeSessionID.isEmpty else { return [:] }
+        // 域名边界（TASK-180）：`hasSuffix` 会让 evilopencode.ai 命中——必须是
+        // opencode.ai 本身或其子域（`.opencode.ai`）。
+        guard Self.isOpencodeHost(baseURL.host), !opencodeSessionID.isEmpty else { return [:] }
         return ["x-opencode-session": opencodeSessionID]
+    }
+
+    /// OpenCode 会话头只发给 `opencode.ai` 与 `*.opencode.ai`（非 Key，但避免把
+    /// 客户端会话标识泄漏给仿冒域名）。
+    static func isOpencodeHost(_ host: String?) -> Bool {
+        guard let host = host?.lowercased() else { return false }
+        return host == "opencode.ai" || host.hasSuffix(".opencode.ai")
     }
 
     /// 从 AppSettings + SecretStore 组装生产配置（TASK-048：SecretStore + 读穿透缓存）。

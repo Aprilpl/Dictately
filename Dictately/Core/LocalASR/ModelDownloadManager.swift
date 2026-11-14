@@ -39,6 +39,8 @@ struct ModelManifest: Equatable, Codable {
         let path: String
         let size: Int64
         let sha256: String?
+        /// HF 非 LFS 文件的 git blob SHA-1（TASK-181；nil = 无此校验）。
+        let gitBlobOID: String?
     }
 
     let repoID: String
@@ -102,6 +104,8 @@ final class ModelDownloadManager {
         self.modelScopeProvider = modelScopeProvider
         self.huggingFaceProvider = huggingFaceProvider
         self.session = session
+        // TASK-181：模型目录 0700（模型文件虽非密钥，但避免其他本机用户读取/篡改）。
+        FilePermissions.ensureOwnerOnlyDirectory(modelsRoot)
         scanInstalled()
     }
 
@@ -268,6 +272,7 @@ final class ModelDownloadManager {
         }
 
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        FilePermissions.ensureOwnerOnlyDirectory(directory) // TASK-181
 
         // 2. 逐文件下载
         var manifestFiles: [ModelManifest.FileEntry] = []
@@ -282,7 +287,7 @@ final class ModelDownloadManager {
             let existingSize = (try? fm.attributesOfItem(atPath: dest.path)[.size] as? Int64) ?? nil
             if let size = existingSize, size == file.size {
                 completedBytes += file.size
-                manifestFiles.append(.init(path: file.path, size: file.size, sha256: file.sha256))
+                manifestFiles.append(.init(path: file.path, size: file.size, sha256: file.sha256, gitBlobOID: file.gitBlobOID))
                 await report()
                 continue
             }
@@ -303,7 +308,7 @@ final class ModelDownloadManager {
                                    // safetensors，仅文件级收口会让进度冻结数分钟
                 })
             await report(force: true)
-            manifestFiles.append(.init(path: file.path, size: file.size, sha256: file.sha256))
+            manifestFiles.append(.init(path: file.path, size: file.size, sha256: file.sha256, gitBlobOID: file.gitBlobOID))
         }
 
         // 3. manifest 原子收口（存在即「已安装」）
@@ -396,8 +401,15 @@ final class ModelDownloadManager {
                 defer { try? handle.close() }
                 if offset > 0 { try handle.seekToEnd() }
 
-                // 哈希：续传时先补算已存在前缀（一次性顺序读）
+                // 哈希：续传时先补算已存在前缀（一次性顺序读）。
+                // LFS/ModelScope 走 SHA256；HF 非 LFS 文件走 git blob SHA-1（TASK-181）：
+                // 树里的 oid 是 `sha1("blob <size>\0" + content)`，须先喂 header。
+                let needsGitBlobCheck = file.sha256 == nil && file.gitBlobOID != nil
                 var hasher = SHA256()
+                var gitBlobHasher: Insecure.SHA1? = needsGitBlobCheck ? Insecure.SHA1() : nil
+                if needsGitBlobCheck {
+                    gitBlobHasher?.update(data: Data("blob \(file.size)\0".utf8))
+                }
                 if offset > 0 {
                     guard let prefix = FileHandle(forReadingAtPath: partURL.path) else {
                         throw URLError(.cannotOpenFile)
@@ -405,6 +417,7 @@ final class ModelDownloadManager {
                     defer { try? prefix.close() }
                     while let chunk = try prefix.read(upToCount: 4 << 20), !chunk.isEmpty {
                         hasher.update(data: chunk)
+                        gitBlobHasher?.update(data: chunk)
                     }
                 }
 
@@ -415,7 +428,10 @@ final class ModelDownloadManager {
                     buffer.append(byte)
                     if buffer.count >= 1 << 20 {
                         try Task.checkCancellation()
-                        buffer.withUnsafeBytes { hasher.update(bufferPointer: $0) }
+                        buffer.withUnsafeBytes {
+                            hasher.update(bufferPointer: $0)
+                            gitBlobHasher?.update(bufferPointer: $0)
+                        }
                         try handle.write(contentsOf: buffer)
                         written += Int64(buffer.count)
                         await onChunk(Int64(buffer.count))
@@ -423,7 +439,10 @@ final class ModelDownloadManager {
                     }
                 }
                 if !buffer.isEmpty {
-                    buffer.withUnsafeBytes { hasher.update(bufferPointer: $0) }
+                    buffer.withUnsafeBytes {
+                        hasher.update(bufferPointer: $0)
+                        gitBlobHasher?.update(bufferPointer: $0)
+                    }
                     try handle.write(contentsOf: buffer)
                     written += Int64(buffer.count)
                     await onChunk(Int64(buffer.count))
@@ -435,17 +454,25 @@ final class ModelDownloadManager {
                     throw URLError(.networkConnectionLost)
                 }
 
-                // SHA256 校验（文件树未提供则跳过）
+                // 校验：sha256（LFS/ModelScope）优先；否则 HF 非 LFS 走 git blob SHA-1。
+                // 两者都没有时才跳过（旧行为）。
+                var mismatch = false
                 if let expected = file.sha256 {
                     let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-                    if digest != expected.lowercased() {
-                        try? fm.removeItem(at: partURL)
-                        if !checksumRetried {
-                            checksumRetried = true
-                            continue // 从头重下一次
-                        }
-                        throw ModelDownloadError.checksumMismatch(path: file.path)
+                    mismatch = digest != expected.lowercased()
+                } else if let expected = file.gitBlobOID {
+                    let digest = gitBlobHasher?.finalize().map {
+                        String(format: "%02x", $0)
+                    }.joined() ?? ""
+                    mismatch = digest != expected.lowercased()
+                }
+                if mismatch {
+                    try? fm.removeItem(at: partURL)
+                    if !checksumRetried {
+                        checksumRetried = true
+                        continue // 从头重下一次
                     }
+                    throw ModelDownloadError.checksumMismatch(path: file.path)
                 }
 
                 // 原子入位

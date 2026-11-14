@@ -108,7 +108,9 @@
 "settings.general.section.permissions" = "权限";
 "settings.general.section.data" = "数据";
 "settings.general.requestLog" = "请求日志";
-"settings.general.requestLog.hint" = "记录听写与 AI 服务请求参数到数据文件夹的 request-log.jsonl（含口述文本，API Key 始终隐藏）。";
+"settings.general.requestLog.hint" = "把听写与 AI 请求记录到数据文件夹的 request-log.jsonl：默认只记参数结构、文本长度与哈希，不记口述原文；API Key 始终隐藏。";
+"settings.general.requestLogFull" = "记录完整请求正文";
+"settings.general.requestLogFull.hint" = "开启后口述与润色文本会全文写入日志（排查内容相关问题用）。排查完建议关闭。";
 "settings.general.dataFolder" = "数据文件夹";
 "settings.general.openDataFolder" = "打开数据文件夹";
 "settings.general.permission.microphone" = "麦克风";
@@ -588,6 +590,7 @@
 "transcribe.subtitle" = "把音频文件交给听写引擎转成文字——API 或本地模型自选，完成后可 AI 总结，历史转写随时回看。";
 "transcribe.new" = "新建转写";
 "transcribe.drop.title" = "拖入一个或多个音频文件，或点击选择";
+"transcribe.drop.hint" = "支持 mp3、wav、m4a，可一次选择多个文件";
 "transcribe.section.model" = "转写模型";
 "transcribe.file.remove" = "移除文件";
 "transcribe.add.more" = "添加文件";
@@ -632,14 +635,22 @@
 "transcribe.panel.empty" = "暂无转写记录";
 "transcribe.panel.failed" = "失败";
 "transcribe.panel.delete" = "删除";
+"transcribe.panel.loadMore" = "加载更多";
+/* 历史行点选（TASK-173：批次运行中禁用，避免顶掉运行队列） */
+"transcribe.panel.row.help" = "查看转写详情";
+"transcribe.panel.disabledHelp" = "转写进行中，完成后再查看历史";
 "transcribe.error.title" = "转写失败：%@（%@）";
 "transcribe.error.hint" = "文件已保留在历史中，可直接重试。";
 "transcribe.error.copy" = "导入文件失败，请重试";
 "transcribe.error.decode" = "音频转码失败，文件可能已损坏";
 "transcribe.error.cancelled" = "已取消";
+/* 收口写库失败（TASK-174：不再静默当成功） */
+"transcribe.error.saveFailed" = "转写结果保存失败";
+"transcribe.error.audioCleaned" = "音频已过保留期清理，无法重新转写";
 "transcribe.toast.unsupported" = "不支持 %@ 格式（支持 mp3 / wav / m4a）";
 "transcribe.toast.copied" = "已复制";
 "transcribe.toast.deleted" = "已删除";
+"transcribe.toast.deleteFailed" = "删除失败，请重试";
 "transcribe.toast.done" = "转写完成 · %@";
 "transcribe.toast.batchDone" = "转写完成";
 
@@ -704,3 +715,11 @@
 "settings.hotkey.trigger.bound.toast" = "触发键已绑定『%@』 · %@";
 "settings.hotkey.trigger.unbound.notice" = "风格『%@』的快捷键已解除——触发键已恢复为自定义组合。";
 "settings.hotkey.trigger.fallback.notice" = "已绑定风格的快捷键已解除或停用——触发键暂用自定义组合。";
+
+/* 可访问性（TASK-177/178）：自绘控件的读屏名称/状态；均为纯文案，不含视觉信息 */
+"a11y.toggle.on" = "已开启";
+"a11y.toggle.off" = "已关闭";
+"a11y.provider.open" = "打开服务配置";
+"a11y.style.open" = "编辑风格";
+"a11y.history.select" = "查看详情";
+"a11y.stats.editSpeed" = "调整手打速度";

@@ -24,9 +24,10 @@ final class AppDatabase {
     /// 打开指定路径的库并跑迁移；path 为 nil 时用内存库（测试）。
     init(path: URL?) throws {
         if let path {
-            try FileManager.default.createDirectory(
-                at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+            // TASK-181：数据目录/库文件仅当前用户可访问（历史与配置都在里面）。
+            FilePermissions.ensureOwnerOnlyDirectory(path.deletingLastPathComponent())
             dbQueue = try DatabaseQueue(path: path.path)
+            FilePermissions.ensureOwnerOnlyFile(path)
         } else {
             dbQueue = try DatabaseQueue() // :memory:
         }

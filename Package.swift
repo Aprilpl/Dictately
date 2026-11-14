@@ -33,8 +33,9 @@ let package = Package(
                 "Info.plist",   // .app bundle 模板，由 build.sh 拷入 Contents/
             ],
             resources: [
-                // 本地化文案经 SPM process 进 Bundle.module（代码用 bundle: .module 取，
-                // 不依赖 Bundle.main——测试进程与分发场景同样可用）
+                // 本地化文案/字体/脚本等经 SPM process 进 Dictately_Dictately.bundle；
+                // 代码一律经 AppResources.bundle 定位（§48：勿用 Bundle.module——其访问器
+                // 含构建机绝对路径，异机必崩；测试进程与分发场景同样可用）
                 .process("Resources")
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]

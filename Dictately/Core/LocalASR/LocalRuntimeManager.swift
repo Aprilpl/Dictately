@@ -36,9 +36,10 @@ final class SubprocessRunner: SubprocessRunning {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        if let environment {
-            process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
-        }
+        // 最小环境（TASK-180）：不继承宿主全量环境，显式参数优先。
+        process.environment = SubprocessEnvironment
+            .minimal(from: ProcessInfo.processInfo.environment)
+            .merging(environment ?? [:]) { _, new in new }
 
         let stdout = Pipe()
         let stderr = Pipe()
@@ -150,9 +151,20 @@ final class LocalRuntimeManager {
         runner: SubprocessRunning = SubprocessRunner(),
         pythonProvider: (() -> URL?)? = nil
     ) {
-        self.venvURL = dataRoot.appendingPathComponent("Runtime/venv", isDirectory: true)
+        let venv = dataRoot.appendingPathComponent("Runtime/venv", isDirectory: true)
+        self.venvURL = venv
         self.runner = runner
         self.pythonProvider = pythonProvider ?? Self.defaultPythonProvider
+        // TASK-181：存量运行时启动幂等收紧（venv 由 python 创建，默认 0755；
+        // 不存在时不预创建——venv 命令需要自己建目录）。
+        let fm = FileManager.default
+        let runtimeRoot = venv.deletingLastPathComponent()
+        if fm.fileExists(atPath: runtimeRoot.path) {
+            FilePermissions.ensureOwnerOnlyDirectory(runtimeRoot)
+        }
+        if fm.fileExists(atPath: venv.path) {
+            FilePermissions.ensureOwnerOnlyDirectory(venv)
+        }
         refresh()
     }
 
@@ -218,6 +230,8 @@ final class LocalRuntimeManager {
                 await MainActor.run { self?.fail("venv 创建失败：\(venvResult.output.suffix(200))") }
                 return
             }
+            // TASK-181：venv（含依赖包）仅当前用户可访问
+            FilePermissions.ensureOwnerOnlyDirectory(venvURL)
             await MainActor.run { self?.phase = .installing(.installingPackages) }
 
             // 2. pip install（PyPI → 清华镜像 fallback）

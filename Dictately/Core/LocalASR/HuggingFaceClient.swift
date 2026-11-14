@@ -56,13 +56,15 @@ final class HuggingFaceClient {
     /// 响应解析（2026-10-14 实测裸数组形态）：
     /// `[{"type":"file","oid":"…","size":N,"path":"…","lfs":{"oid":"sha256…","size":N}}]`
     /// 过滤 type=="file"（目录节点 type="directory"）+ 点开头仓库元数据；
-    /// sha256 = lfs.oid（仅 LFS 有；普通文件 nil → 校验跳过）。
+    /// sha256 = lfs.oid（仅 LFS 有）；非 LFS 文件把 git blob oid 收进 `gitBlobOID`
+    /// 供下载后按 git blob 规则校验（TASK-181）。
     /// 已知边界（有意不处理）：分页 Link header——目录 7 款仓库均 ≤13 文件，
     /// 远小于单页 1000 上限；新增模型若超限需在此补游标跟随。
     static func decodeTree(_ data: Data) throws -> [ModelRepoFile] {
         struct RawFile: Codable {
             struct LFS: Codable { let oid: String? }
             let type: String?
+            let oid: String?
             let size: Int64?
             let path: String?
             let lfs: LFS?
@@ -75,6 +77,7 @@ final class HuggingFaceClient {
                 path: path,
                 size: file.size ?? 0,
                 sha256: file.lfs?.oid,
+                gitBlobOID: file.lfs == nil ? file.oid : nil,
                 isLFS: file.lfs != nil)
         }
     }

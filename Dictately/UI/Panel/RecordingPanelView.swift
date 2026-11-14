@@ -76,6 +76,7 @@ struct RecordingPanelView: View {
                 }
 
                 WaveformView(isActive: model.phase == .recording, sample: level)
+                    .accessibilityHidden(true) // 纯视觉电平，状态由 statusArea 文本承担（TASK-178）
 
                 statusArea
 

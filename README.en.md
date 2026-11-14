@@ -11,6 +11,7 @@ English · [简体中文](README.md)
 ![macOS](https://img.shields.io/badge/macOS-14%2B-000000?logo=macos&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-SPM-F05138?logo=swift&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![CI](https://github.com/Aprilpl/Dictately/actions/workflows/ci.yml/badge.svg)
 
 A native macOS dictation tool: press the hotkey in any app, speak, and your words are transcribed in the cloud or locally on-device, optionally AI-polished, and pasted at your cursor within 1–3 seconds.
 
@@ -86,7 +87,7 @@ A native macOS dictation tool: press the hotkey in any app, speak, and your word
 
 Download the latest DMG from [Releases](../../releases), open it, and drag Dictately into **Applications**.
 
-**First launch (important):** Dictately is signed with a self-signed certificate (not an Apple-recognized developer certificate) and is not notarized by Apple, so Gatekeeper will block the first launch. Use any of the following to allow it:
+**First launch (important):** Dictately is signed with a self-signed certificate (not an Apple-recognized developer certificate) and is not notarized by Apple, so Gatekeeper will block the first launch. Use any of the following to allow it (the app runs with the macOS hardened runtime, but that does not change Gatekeeper behavior for self-signed distribution):
 
 - **Right-click Dictately in Applications → Open → click “Open” again**;
 - or System Settings → Privacy & Security → scroll down and click “Open Anyway”;
@@ -138,8 +139,9 @@ Each provider stores its own base URL / model / API key; pick a model from the p
 - **API keys live only in the macOS Keychain**, per provider, and are never uploaded anywhere
 - **Local offline transcription runs entirely on this Mac** — neither audio nor text ever leaves the machine
 - History and audio stay local: `~/Library/Application Support/Dictately/` (one click to open via General settings → Data folder)
-- Audio retention: 30 days (default) / 90 days / forever
-- Optional **API request log** (on by default, can be disabled in General settings): one line per request with endpoint, latency, and outcome metadata only; **API keys are always redacted**; auto-rotates at 5 MB
+- Data directory and database file are owner-only (0700 directories / 0600 database)
+- Audio retention: 30 days (default) / 90 days / forever (applies to both dictation recordings and audio imported for file transcription)
+- Optional **API request log** (on by default, can be disabled in General settings): one line per request; by default it records only endpoint, latency, outcome and request structure — **dictated/transcribed text is stored as length + hash, never in plain text**. You can explicitly enable “log full request body” in General settings when debugging content issues. **API keys are always redacted**; the file is owner-only (0600) and auto-rotates at 5 MB
 - Apart from the cloud ASR/LLM endpoints you configure, model-download channels (ModelScope / HuggingFace), and manual update checks (GitHub), the app makes no outbound network calls
 
 ## Building from source
@@ -153,7 +155,9 @@ cd Dictately
 open build/Dictately.app    # run it
 ```
 
-> Note: for maintenance reasons the public repository does not ship the unit-test bundle; `swift build` and `./scripts/build.sh` are unaffected.
+
+
+Reproduce the CI build locally (no signing, no embedded runtime): `DICTATELY_CI=1 ./scripts/build.sh Debug`.
 
 ## Known limitations
 

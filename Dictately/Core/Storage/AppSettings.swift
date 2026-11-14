@@ -93,6 +93,7 @@ final class AppSettings {
         static let soundEffects = "soundEffects"
         static let soundEffect = "soundEffectName"
         static let requestLogEnabled = "requestLogEnabled"
+        static let requestLogFullBody = "requestLogFullBody"
         static let statsTypingSpeed = "stats.typingSpeed"
         // 文件转写 AI 总结自定义 Prompt（TASK-152）：空 = 未自定义，回落内置文案。
         static let transcribeSummaryPrompt = "transcribe.summaryPrompt"

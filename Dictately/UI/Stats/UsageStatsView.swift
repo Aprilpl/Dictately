@@ -444,6 +444,16 @@ private struct SpeedField: View {
                     editing = true
                     focused = true
                 }
+                // 自绘「点数字改速度」：读屏需知道它能按（TASK-178）。
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(String(localized: "a11y.stats.editSpeed"))
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction {
+                    text = String(speed)
+                    invalid = false
+                    editing = true
+                    focused = true
+                }
         }
     }
 

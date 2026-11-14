@@ -14,7 +14,7 @@ struct TranscribeHistoryPanelView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(Theme.text1)
                 Spacer()
-                Text(String(format: String(localized: "transcribe.panel.count"), controller.history.count))
+                Text(String(format: String(localized: "transcribe.panel.count"), controller.historyTotalCount))
                     .font(.system(size: 11))
                     .monospacedDigit()
                     .foregroundStyle(Theme.text3)
@@ -35,6 +35,28 @@ struct TranscribeHistoryPanelView: View {
                     LazyVStack(spacing: 2) {
                         ForEach(controller.history) { entry in
                             row(entry)
+                        }
+                        // 分页（TASK-185）：只加载已展开页；点按加载下一页，标题计数
+                        // 始终显示总条数。批次刷新会重置回第一页（删除/新增后一致）。
+                        if controller.historyHasMore {
+                            Button {
+                                controller.loadMoreHistory()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    if controller.isLoadingMoreHistory {
+                                        ProgressView().controlSize(.mini)
+                                    }
+                                    Text("transcribe.panel.loadMore")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(Theme.text2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 7)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(controller.isLoadingMoreHistory)
+                            .accessibilityLabel(String(localized: "transcribe.panel.loadMore"))
                         }
                     }
                 }
@@ -60,6 +82,7 @@ struct TranscribeHistoryPanelView: View {
         } label: {
             HStack(spacing: 8) {
                 statusDot(entry)
+                    .accessibilityHidden(true) // 状态已由行文本/失败 chip 承担（TASK-178）
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.fileName)
                         .font(.system(size: 12, weight: active ? .semibold : .regular))
@@ -91,6 +114,7 @@ struct TranscribeHistoryPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .help(String(localized: "transcribe.panel.delete"))
+                .accessibilityLabel(String(localized: "transcribe.panel.delete"))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 7)
@@ -107,6 +131,13 @@ struct TranscribeHistoryPanelView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // 批次运行中禁止点选（TASK-173）：hist 视图会顶掉 running 队列，且页头
+        // 「＋ 新建转写」随之出现——那是清空批次状态的入口。完成后即可点。
+        .disabled(controller.isBatchRunning)
+        .help(controller.isBatchRunning
+              ? String(localized: "transcribe.panel.disabledHelp")
+              : String(localized: "transcribe.panel.row.help"))
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     @ViewBuilder

@@ -148,6 +148,8 @@ final class PythonWorkerProcess: LocalWorkerControlling {
         let process = Process()
         process.executableURL = pythonURL
         process.arguments = [scriptURL.path]
+        // 最小环境（TASK-180）：worker 只吃参数，不需要宿主环境。
+        process.environment = SubprocessEnvironment.minimal(from: ProcessInfo.processInfo.environment)
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- TASK-183：自签证书无 Team ID，hardened runtime 的库校验会拒绝加载
+	     Sparkle.framework（dyld: different Team IDs）。放开库校验；DYLD_* 注入仍被
+	     hardened runtime 阻止（未开 allow-dyld-environment-variables）。 -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>

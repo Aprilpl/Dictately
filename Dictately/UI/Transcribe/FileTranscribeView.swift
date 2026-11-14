@@ -115,8 +115,8 @@ struct FileTranscribeView: View {
             Spacer()
             HStack(spacing: 10) {
                 summarySettingsButton
-                if controller.viewingEntryID != nil {
-                    IconButton(icon: "plus", wide: true) {
+                if controller.viewingEntryID != nil, !controller.isBatchRunning {
+                    IconButton(icon: "plus", label: String(localized: "transcribe.new"), wide: true) {
                         controller.resetToEmpty()
                     }
                     .help(String(localized: "transcribe.new"))
@@ -130,7 +130,7 @@ struct FileTranscribeView: View {
     /// 任何页面状态可见；任一非默认（预设 ≠ 会议纪要助理，或已钉选服务）时
     /// 钮右上亮 7pt 蓝点（原型同形态）。
     private var summarySettingsButton: some View {
-        IconButton(icon: "slider.horizontal.3", wide: true) {
+        IconButton(icon: "slider.horizontal.3", label: String(localized: "transcribe.summary.settings.help"), wide: true) {
             showSummarySettings = true
         }
         .help(String(localized: "transcribe.summary.settings.help"))

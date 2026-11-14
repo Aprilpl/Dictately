@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// ASR/LLM 外发请求日志（JSONL 落盘到数据目录，2026-10-10 用户裁决）。
@@ -5,8 +6,11 @@ import Foundation
 /// 一行一请求（`request-log.jsonl`），覆盖三条请求路径的全部出口（正式听写/润色/
 /// 重新生成 + 设置页测试连接探测）：
 /// - `kind` = asr-qwen / asr-openai-compatible / llm；`purpose` = transcribe / polish / test
-/// - 请求参数全文落盘（messages 含口述文本、Prompt 模板），音频只记元数据
-///   `{mime, bytes}`——base64 一条 1–2MB，落盘即日志爆炸（用户裁决）
+/// - **默认脱敏（TASK-175）**：文本字段（messages 的 content / prompt / system /
+///   user / text）替换为 `{redacted, chars, sha256Prefix}`，模型、温度、结构、role、
+///   音频 `{mime, bytes}` 元数据原样保留；「完整请求正文」需设置页显式开启（含
+///   口述/润色原文，硬约束 #6 的显式例外）。音频 base64 任何模式都不落盘
+///   （一条 1–2MB，落盘即日志爆炸，用户裁决）
 /// - **API Key 恒脱敏**（`Bearer <redacted>(len=N)`，保留长度供残值 Key 排查）
 ///   ——Key 是用户财产，明文绝不落盘（Keychain 保护基线，硬约束 #6）
 /// - 成功响应只记 status/latencyMs；失败附 bodySummary 前 200 字符（与 os_log 摘要同口径）
@@ -41,7 +45,8 @@ final class RequestLog {
         let url: String
         /// 落盘形态的请求头（Authorization 已是脱敏串，勿在此放明文 Key）。
         let headers: [String: String]
-        /// 请求参数（音频只记 {mime, bytes} 元数据；LLM 为完整请求体 JSON 对象）。
+        /// 请求参数（音频只记 {mime, bytes} 元数据；LLM 为请求体 JSON 对象）。
+        /// 落盘前按 `fullBody` 决定是否脱敏（见 RequestLog.append）。
         let request: [String: Any]
         var status: Int?
         var latencyMs: Int?
@@ -133,21 +138,27 @@ final class RequestLog {
     private let fileURL: URL
     private let maxBytes: Int
     private let enabled: () -> Bool
+    /// 完整正文开关（每次写入现读）：false = 文本字段只落长度/哈希（默认）。
+    private let fullBody: () -> Bool
     private let queue = DispatchQueue(label: "com.dictately.request-log")
     /// 首写权限确保标记——只在内部串行队列内读写（write 全经 queue.async 串行化，免锁）。
     private var permissionsEnsured = false
 
     /// - Parameters:
     ///   - enabled: 每次写入现读（即时生效）；默认恒开（生产装配传入 settings 闭包）。
+    ///   - fullBody: 每次写入现读；默认 false（文本脱敏）——测试/生产都要显式开启
+    ///     才会落全文，避免未来新装配点静默泄漏口述文本。
     ///   - maxBytes: 轮转阈值，超过即把当前文件改名 `*.1.jsonl` 后新建。
     init(
         fileURL: URL = RequestLog.defaultFileURL(),
         maxBytes: Int = 5 * 1024 * 1024,
-        enabled: @escaping () -> Bool = { true }
+        enabled: @escaping () -> Bool = { true },
+        fullBody: @escaping () -> Bool = { false }
     ) {
         self.fileURL = fileURL
         self.maxBytes = maxBytes
         self.enabled = enabled
+        self.fullBody = fullBody
     }
 
     /// 追加一条记录（fire-and-forget：序列化在调用线程，写盘在内部串行队列；
@@ -159,7 +170,13 @@ final class RequestLog {
         // ——日志行同样经 JSONEncoder 编码，数字文本与实发字节一致。
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        guard let root = LogValue(entry.jsonObject),
+        // 默认脱敏在唯一落盘出口做（不在各客户端重复）：新客户端只要走 append
+        // 就自动继承「不记原文」纪律，不会因忘记传模式而泄漏口述文本。
+        var object = entry.jsonObject
+        if !fullBody() {
+            object["request"] = Self.redactedRequest(entry.request)
+        }
+        guard let root = LogValue(object),
               let line = try? encoder.encode(root)
         else {
             AppLog.pipeline.error("request-log: entry not serializable (kind=\(entry.kind.rawValue, privacy: .public))")
@@ -177,6 +194,47 @@ final class RequestLog {
         queue.sync {}
     }
 
+    // MARK: - 文本脱敏（TASK-175）
+
+    /// 视为「用户文本」的字段名：无论嵌在哪层（LLM `messages`、Qwen `input.messages`、
+    /// ASR `prompt`）都替换为长度 + 哈希。结构/role/model/采样参数/音频元数据不动。
+    /// `vocabulary`/`language_hints` 属配置而非正文，保留原样供排查。
+    private static let sensitiveKeys: Set<String> = [
+        "content", "text", "prompt", "system", "user", "message", "audio",
+    ]
+
+    /// 落盘形态的脱敏请求体（纯函数，测试直接断言；空/非字符串字段原样保留）。
+    static func redactedRequest(_ request: [String: Any]) -> [String: Any] {
+        guard let redacted = redactValue(request) as? [String: Any] else { return [:] }
+        return redacted
+    }
+
+    /// 文本摘要：长度（字符数）+ SHA256 前 4 字节（8 位 hex）——同文可关联、
+    /// 不可逆、体量恒定。与硬约束 #6 的「长度 + 前 8 位哈希」同口径。
+    static func textSummary(_ text: String) -> [String: Any] {
+        let digest = SHA256.hash(data: Data(text.utf8))
+        let prefix = digest.prefix(4).map { String(format: "%02x", $0) }.joined()
+        return ["redacted": true, "chars": text.count, "sha256Prefix": prefix]
+    }
+
+    private static func redactValue(_ value: Any) -> Any {
+        if let dictionary = value as? [String: Any] {
+            var out: [String: Any] = [:]
+            for (key, child) in dictionary {
+                if sensitiveKeys.contains(key), let text = child as? String {
+                    out[key] = textSummary(text)
+                } else {
+                    out[key] = redactValue(child)
+                }
+            }
+            return out
+        }
+        if let array = value as? [Any] {
+            return array.map { redactValue($0) }
+        }
+        return value
+    }
+
     // MARK: - 写盘（串行队列内）
 
     private func write(_ line: Data, to url: URL, rotatingOver limit: Int) {
@@ -186,6 +244,7 @@ final class RequestLog {
             if !fm.fileExists(atPath: dir.path) {
                 try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }
+            FilePermissions.ensureOwnerOnlyDirectory(dir) // TASK-181：日志目录 0700
             // 权限确保在轮转之前：轮转 moveItem 继承的是收紧后的 0600
             if !permissionsEnsured {
                 permissionsEnsured = true

@@ -30,6 +30,11 @@ struct GeneralSettingsView: View {
     /// 文本输入方法本地镜像（bug00013 规则；TASK-126 起为真下拉）。
     @State private var textInputMethod = TextInputMethod.paste
 
+    /// 请求日志本地镜像（TASK-175）：子开关「完整正文」是否显示取决于日志总开关，
+    /// 直读 settings 不会触发重绘（AppSettings 非 Observable）——本地态双写。
+    @State private var requestLogEnabled = true
+    @State private var requestLogFullBody = false
+
     /// 效果音选择本地镜像（bug00013 规则：Menu label 直读 settings 不刷新）。
     @State private var soundEffect: EffectSound = .defaultSound
     /// 预览播放器（选中即试听 / ▶ 按钮；不受 soundEffects 总开关限制——关着也能试）。
@@ -75,15 +80,15 @@ struct GeneralSettingsView: View {
                             ))
                     }
                     SettingRow("settings.general.launchAtLogin", hint: launchAtLoginHint) {
-                        valueColumn(GlassToggle(isOn: launchAtLoginBinding, disabled: syncingLoginState))
+                        valueColumn(GlassToggle(isOn: launchAtLoginBinding, label: String(localized: "settings.general.launchAtLogin"), disabled: syncingLoginState))
                     }
                     // TASK-076：App 常驻入口（关窗不退出）——Dock 可藏、状态栏常驻；
                     // 副作用（activationPolicy/图标可见性）由 AppDelegate KVO 承担
                     SettingRow("settings.general.showInDock", hint: "settings.general.showInDock.hint") {
-                        valueColumn(GlassToggle(isOn: boolBinding(\.showInDock)))
+                        valueColumn(GlassToggle(isOn: boolBinding(\.showInDock), label: String(localized: "settings.general.showInDock")))
                     }
                     SettingRow("settings.general.showStatusBarIcon", hint: "settings.general.showStatusBarIcon.hint", divider: false) {
-                        valueColumn(GlassToggle(isOn: boolBinding(\.showStatusBarIcon)))
+                        valueColumn(GlassToggle(isOn: boolBinding(\.showStatusBarIcon), label: String(localized: "settings.general.showStatusBarIcon")))
                     }
                 }
 
@@ -94,7 +99,7 @@ struct GeneralSettingsView: View {
                         valueColumn(micMenu)
                     }
                     SettingRow("settings.general.soundEffects", hint: "settings.general.soundEffects.hint") {
-                        valueColumn(GlassToggle(isOn: boolBinding(\.soundEffects)))
+                        valueColumn(GlassToggle(isOn: boolBinding(\.soundEffects), label: String(localized: "settings.general.soundEffects")))
                     }
                     SettingRow("settings.general.soundEffect", hint: "settings.general.soundEffect.hint") {
                         valueColumn(
@@ -104,10 +109,10 @@ struct GeneralSettingsView: View {
                             })
                     }
                     SettingRow("settings.general.muteDuringRecording", hint: "settings.general.muteDuringRecording.hint") {
-                        valueColumn(GlassToggle(isOn: boolBinding(\.muteDuringRecording)))
+                        valueColumn(GlassToggle(isOn: boolBinding(\.muteDuringRecording), label: String(localized: "settings.general.muteDuringRecording")))
                     }
                     SettingRow("settings.general.escCancel", hint: "settings.general.escCancel.hint") {
-                        valueColumn(GlassToggle(isOn: boolBinding(\.escCancelsRecording)))
+                        valueColumn(GlassToggle(isOn: boolBinding(\.escCancelsRecording), label: String(localized: "settings.general.escCancel")))
                     }
                     SettingRow("settings.general.maxDuration", hint: "settings.general.maxDuration.hint", divider: false) {
                         valueColumn(maxDurationMenu)
@@ -121,7 +126,7 @@ struct GeneralSettingsView: View {
                     // （模拟按键模式也写入，用户裁决），关掉只会造成「粘贴出旧内容」的静默
                     // 故障，故展示但不可关闭。
                     SettingRow("settings.general.autoCopy", hint: "settings.general.autoCopy.hint") {
-                        valueColumn(GlassToggle(isOn: .constant(true), disabled: true))
+                        valueColumn(GlassToggle(isOn: .constant(true), label: String(localized: "settings.general.autoCopy"), disabled: true))
                     }
                     // TASK-126：文本输入方法改为真下拉（粘贴×4 键位布局 + 模拟按键）
                     SettingRow("settings.general.textInputMethod", hint: "settings.general.textInputMethod.hint") {
@@ -170,7 +175,30 @@ struct GeneralSettingsView: View {
                         title: String(localized: "settings.general.requestLog"),
                         hint: String(localized: "settings.general.requestLog.hint")
                     ) {
-                        valueColumn(GlassToggle(isOn: boolBinding(\.requestLogEnabled)))
+                        valueColumn(GlassToggle(
+                            isOn: Binding(
+                                get: { requestLogEnabled },
+                                set: {
+                                    requestLogEnabled = $0
+                                    environment.settings.requestLogEnabled = $0
+                                }),
+                            label: String(localized: "settings.general.requestLog")))
+                    }
+                    // 完整正文为显式例外（TASK-175）：默认折叠，只在日志总开关开启时出现。
+                    if requestLogEnabled {
+                        SettingRow(
+                            title: String(localized: "settings.general.requestLogFull"),
+                            hint: String(localized: "settings.general.requestLogFull.hint")
+                        ) {
+                            valueColumn(GlassToggle(
+                                isOn: Binding(
+                                    get: { requestLogFullBody },
+                                    set: {
+                                        requestLogFullBody = $0
+                                        environment.settings.requestLogFullBody = $0
+                                    }),
+                                label: String(localized: "settings.general.requestLogFull")))
+                        }
                     }
                     SettingRow(
                         title: String(localized: "settings.general.dataFolder"),
@@ -205,6 +233,8 @@ struct GeneralSettingsView: View {
             maxDuration = environment.settings.maxRecordingSeconds
             textInputMethod = environment.settings.textInputMethod
             soundEffect = environment.settings.soundEffect
+            requestLogEnabled = environment.settings.requestLogEnabled
+            requestLogFullBody = environment.settings.requestLogFullBody
             syncLaunchAtLoginFromSystem()
             environment.permissions.refresh() // 权限卡即时反映当前状态
             startPermissionPolling()

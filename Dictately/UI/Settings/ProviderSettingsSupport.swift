@@ -184,6 +184,7 @@ struct ProviderListCard: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.text3)
+                    .accessibilityHidden(true) // 纯装饰（TASK-178）
             }
             // 行高基准 34 = 槽位高（RailButton / SlotSeal 均 34×34）：全列表等高
             // （2026-10-14 用户指认「使用中卡片反而更矮」追修，TASK-149 起槽位常驻）。
@@ -220,6 +221,10 @@ struct ProviderListCard: View {
                 .strokeBorder(used ? Theme.softBlueTintBorder : Theme.line, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture { onOpen() }
+        // 卡片本体是「点进二级」的点击区（内嵌按钮优先命中，故不用 Button 包裹）；
+        // 容器保留子元素（使用/密钥徽），自定义动作给读屏提供同一入口（TASK-178）。
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text(String(localized: "a11y.provider.open"))) { onOpen() }
     }
 }
 

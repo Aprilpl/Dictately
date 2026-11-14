@@ -597,6 +597,7 @@ struct EntryRow: View {
                         //「已取消」chip 承担（绿色 ✓ 会与「已取消」语义矛盾）
                         if entry.status != .cancelled {
                             StatusMark(isOK: entry.status != .failed)
+                                .accessibilityHidden(true) // 状态已由元信息行 chip 承担（TASK-178）
                         }
                     }
                 }
@@ -616,6 +617,10 @@ struct EntryRow: View {
         .animation(.easeInOut(duration: 0.18), value: hovering)
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
+        // 行本体的「选中」动作给读屏（复制/删除是内嵌真实按钮，保持可聚焦）。
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text(String(localized: "a11y.history.select"))) { onSelect() }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .onHover { hovering = $0 }
     }
 
@@ -631,6 +636,7 @@ struct EntryRow: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.white)
+                    .accessibilityHidden(true) // 选中态由 .isSelected trait 表达（TASK-178）
             }
         }
     }

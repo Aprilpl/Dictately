@@ -58,6 +58,15 @@ extension AppSettings {
         set { defaults.set(newValue, forKey: Key.requestLogEnabled) }
     }
 
+    /// 请求日志是否记录完整正文（TASK-175，默认关）：关 = 文本字段（messages 的
+    /// content / prompt / system / user 等）只记 `{redacted, chars, sha256Prefix}`，
+    /// 结构与采样参数原样保留；开 = 旧行为（全文落盘，含口述/润色文本，硬约束 #6
+    /// 的显式例外）。仅在 requestLogEnabled 开启时有意义。RequestLog 每次写入现读。
+    var requestLogFullBody: Bool {
+        get { bool(Key.requestLogFullBody, default: false) }
+        set { defaults.set(newValue, forKey: Key.requestLogFullBody) }
+    }
+
     /// 省时估算的手打速度（TASK-133，默认 40 字/分钟）：getter 10–200 钳制
     /// （越界回边界值，非法/未写回默认）——省时横幅输入框的持久值。
     var statsTypingSpeed: Int {

@@ -75,6 +75,9 @@ ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 # generate_appcast 关联为该项的内置发布说明
 if [ -f "dist/release-notes-v${VERSION}.md" ]; then
   cp "dist/release-notes-v${VERSION}.md" "dist/sparkle/${ZIP_BASE}.md"
+  # 根目录同名 .md：generate_appcast 的 releaseNotesLink 指向 raw main/<zip 名>.md，
+  # 必须随 appcast 一起提交，否则 Sparkle 更新窗报「release notes 下载失败」。
+  cp "dist/release-notes-v${VERSION}.md" "Dictately-${VERSION}-${ARCH}.md"
 fi
 
 # appcast 单条目纪律（§87/§89）：dist/sparkle/ 只放当版 zip（+同名 .md 侧车）——

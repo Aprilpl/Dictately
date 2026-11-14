@@ -25,8 +25,8 @@ final class AudioFileStore {
         } else {
             self.directory = Self.defaultDirectory()
         }
-        try FileManager.default.createDirectory(
-            at: self.directory, withIntermediateDirectories: true)
+        // TASK-181：录音目录 0700（历史音频属隐私数据）。
+        FilePermissions.ensureOwnerOnlyDirectory(self.directory)
     }
 
     /// 生产目录（与 SQLite 同级：`~/Library/Application Support/Dictately/Recordings/`）。

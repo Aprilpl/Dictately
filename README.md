@@ -11,6 +11,7 @@
 ![macOS](https://img.shields.io/badge/macOS-14%2B-000000?logo=macos&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-SPM-F05138?logo=swift&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![CI](https://github.com/Aprilpl/Dictately/actions/workflows/ci.yml/badge.svg)
 
 macOS 原生语音听写工具：在任意 App 里按下快捷键说话，云端或本地离线转写、可选 AI 润色，文字 1–3 秒内自动粘贴到光标处。
 
@@ -86,7 +87,7 @@ macOS 原生语音听写工具：在任意 App 里按下快捷键说话，云端
 
 从 [Releases](../../releases) 下载最新 DMG，双击挂载后将 Dictately 拖入「应用程序」。
 
-**首次打开（重要）**：Dictately 采用自签证书（非 Apple 认可的开发者证书）、未经 Apple 公证，首次打开会被 Gatekeeper 拦截，任选其一放行：
+**首次打开（重要）**：Dictately 采用自签证书（非 Apple 认可的开发者证书）、未经 Apple 公证，首次打开会被 Gatekeeper 拦截，任选其一放行（应用已启用 macOS hardened runtime，但这不改变自签分发的 Gatekeeper 行为）：
 
 - 在「应用程序」中**右键 Dictately → 打开 → 再次点「打开」**；
 - 或 系统设置 → 隐私与安全性 → 拉到底点「仍要打开」；
@@ -138,8 +139,9 @@ macOS 原生语音听写工具：在任意 App 里按下快捷键说话，云端
 - **API Key 仅存于 macOS Keychain**，按供应商分账户，不上传任何服务器
 - **本地离线转写全程在本机完成**，音频与文字都不出本机
 - 历史与音频全部本地：`~/Library/Application Support/Dictately/`（常规设置 → 数据文件夹 可一键打开）
-- 音频保留期可选 30 天（默认）/ 90 天 / 永久
-- 可选的 **API 请求日志**（默认开启，可在常规设置关闭）：一行一请求，仅记端点、耗时与结果等元数据，**API Key 恒脱敏**，5MB 自动轮转
+- 数据目录与数据库文件仅当前用户可读写（目录 0700 / 数据库 0600）
+- 音频保留期可选 30 天（默认）/ 90 天 / 永久（听写录音与文件转写导入音频同规则）
+- 可选的 **API 请求日志**（默认开启，可在常规设置关闭）：一行一请求，默认只记端点、耗时、结果与参数结构——**口述/转写文本仅记长度与哈希，不落原文**；需要排查内容相关问题时，可在常规设置显式开启「记录完整请求正文」。**API Key 恒脱敏**，文件仅本用户可读（0600），5MB 自动轮转
 - 除你配置的云端 ASR / LLM 端点、模型下载渠道（ModelScope / HuggingFace）与应用内更新检查（GitHub）外，应用不产生任何外发流量
 
 ## 从源码构建
@@ -154,6 +156,8 @@ open build/Dictately.app    # 运行
 ```
 
 > 注：出于维护策略，公开仓库不包含单元测试目录，`swift build` 与 `./scripts/build.sh` 不受影响。
+
+本地复现 CI 构建（不签名、不嵌入运行时）：`DICTATELY_CI=1 ./scripts/build.sh Debug`。
 
 ## 已知边界
 

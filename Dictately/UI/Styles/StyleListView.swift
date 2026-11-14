@@ -110,7 +110,7 @@ struct StyleListView: View {
     /// 卡面 fillSoft + line 边 + 12 圆角。
     private func card(_ style: Style) -> some View {
         HStack(spacing: 12) {
-            GlassToggle(isOn: enabledBinding(style), small: true)
+            GlassToggle(isOn: enabledBinding(style), label: style.name, small: true)
 
             Button {
                 editingStyle = style
@@ -146,6 +146,7 @@ struct StyleListView: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.text3)
+                .accessibilityHidden(true) // 纯装饰（TASK-178）
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 10)
@@ -153,6 +154,10 @@ struct StyleListView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.line, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture { editingStyle = style }
+        // 整卡点击 = 进编辑（内嵌开关/按钮优先命中，故不用 Button 包裹）；
+        // 容器保留子元素（启用开关/快捷键），自定义动作给读屏提供同一入口（TASK-178）。
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text(String(localized: "a11y.style.open"))) { editingStyle = style }
     }
 
     // MARK: - 数据

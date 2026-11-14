@@ -87,6 +87,12 @@ struct TranscribeWorkbenchView: View {
                     style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
         .contentShape(Rectangle())
         .onTapGesture { importerShown = true }
+        // 拖放区是自绘点击区：读屏需要「按钮 + 名称 + 动作」三件套（TASK-178）。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "transcribe.drop.title"))
+        .accessibilityHint(String(localized: "transcribe.drop.hint"))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { importerShown = true }
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
             guard !providers.isEmpty else { return false }
             for provider in providers {
@@ -150,6 +156,7 @@ struct TranscribeWorkbenchView: View {
             }
             .buttonStyle(.plain)
             .help(String(localized: "transcribe.file.remove"))
+            .accessibilityLabel(String(localized: "transcribe.file.remove"))
         }
     }
 
@@ -340,7 +347,7 @@ struct TranscribeWorkbenchView: View {
                         TranscribeElapsedText(style: .done)
                     }
                     Spacer()
-                    IconButton(icon: "plus") {
+                    IconButton(icon: "plus", label: String(localized: "transcribe.next")) {
                         controller.resetToEmpty()
                     }
                     .help(String(localized: "transcribe.next"))
@@ -510,7 +517,7 @@ struct TranscribeResultCard: View {
         HStack(spacing: 10) {
             TranscribeSummarizeControl(
                 entryID: entry.id ?? -1, hasSummary: entry.summary != nil)
-            IconButton(icon: "doc.on.doc") {
+            IconButton(icon: "doc.on.doc", label: String(localized: "transcribe.copy.help")) {
                 environment.clipboard.write(entry.text ?? "")
                 environment.toast.show(String(localized: "transcribe.toast.copied"))
             }
@@ -599,7 +606,7 @@ struct TranscribeErrorCard: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.text3)
                 HStack {
-                    IconButton(icon: "arrow.clockwise", variant: .danger) {
+                    IconButton(icon: "arrow.clockwise", label: String(localized: "transcribe.retry"), variant: .danger) {
                         if let id = entry.id {
                             controller.retryEntry(id)
                         }
@@ -683,7 +690,7 @@ private struct TranscribeSummarizeControl: View {
                 .padding(.vertical, 6)
                 .background(Capsule().fill(Theme.field))
         } else {
-            IconButton(icon: "sparkle", variant: .blue) {
+            IconButton(icon: "sparkle", label: String(localized: "transcribe.summary.help"), variant: .blue) {
                 controller.summarize(entryID)
             }
             .disabled(!controller.llmConfigured)
@@ -712,12 +719,12 @@ private struct SummaryBodyPane: View {
             .disabled(isRegenerating)
             HStack(spacing: 8) {
                 Spacer()
-                IconButton(icon: "arrow.clockwise") {
+                IconButton(icon: "arrow.clockwise", label: String(localized: "transcribe.summary.regen.help")) {
                     controller.summarize(entryID, isRegeneration: true)
                 }
                 .disabled(isRegenerating)
                 .help(String(localized: "transcribe.summary.regen.help"))
-                IconButton(icon: "doc.on.doc") {
+                IconButton(icon: "doc.on.doc", label: String(localized: "transcribe.copy.help")) {
                     environment.clipboard.write(raw)
                     environment.toast.show(String(localized: "transcribe.toast.copied"))
                 }

@@ -18,6 +18,8 @@ struct LocalModelDeleteConfirm: View {
                 .fill(Theme.maskScrim)
                 .contentShape(Rectangle())
                 .onTapGesture { onCancel() }
+                // 遮罩是鼠标快捷路径；取消按钮/Esc 已覆盖键盘与读屏（TASK-178）。
+                .accessibilityHidden(true)
             card
         }
         .transition(.opacity)

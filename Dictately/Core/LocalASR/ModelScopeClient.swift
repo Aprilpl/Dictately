@@ -10,12 +10,19 @@ struct ModelRepoFile: Equatable {
     let size: Int64
     /// 仓库侧校验和（小写 hex；下载完成比对）。
     let sha256: String?
+    /// 非 LFS 文件在 HuggingFace 侧的 git blob SHA-1（`oid` 字段，TASK-181）：
+    /// 这类文件没有 sha256，此前校验被静默跳过；有值时下载后按 git blob 规则校验。
+    let gitBlobOID: String?
     let isLFS: Bool
 
-    init(path: String, size: Int64, sha256: String? = nil, isLFS: Bool = false) {
+    init(
+        path: String, size: Int64, sha256: String? = nil,
+        gitBlobOID: String? = nil, isLFS: Bool = false
+    ) {
         self.path = path
         self.size = size
         self.sha256 = sha256
+        self.gitBlobOID = gitBlobOID
         self.isLFS = isLFS
     }
 }

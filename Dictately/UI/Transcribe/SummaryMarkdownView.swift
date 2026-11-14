@@ -255,7 +255,20 @@ extension SummaryMarkdown {
                 parsed[run.range].swiftUI.backgroundColor = Theme.field
             }
         }
-        return parsed
+        return strippedLinks(parsed)
+    }
+
+    /// 去掉行内链接属性（TASK-180）：摘要来自模型输出，prompt injection 可诱导生成
+    /// 链接；卡片内点击不应打开默认浏览器。复制摘要走 Markdown 原文，不受影响。
+    static func strippedLinks(_ attributed: AttributedString) -> AttributedString {
+        var result = attributed
+        let linkRanges = result.runs.compactMap { run in
+            run.link == nil ? nil : run.range
+        }
+        for range in linkRanges {
+            result[range].link = nil
+        }
+        return result
     }
 }
 
@@ -358,6 +371,9 @@ struct SummaryMarkdownView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // 双保险（TASK-180）：行内属性已剥 link；万一未来有其它入口带链接，
+        // 卡片内点击一律丢弃，不交给系统打开浏览器。
+        .environment(\.openURL, OpenURLAction { _ in .discarded })
     }
 
     @ViewBuilder

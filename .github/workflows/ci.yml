@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, public]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (CLT-compatible)
+    # macos-14 在本仓库被 GitHub 立即取消（无可用 runner），macos-15 实测可用
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Cache SwiftPM build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
+      - name: Build (debug)
+        run: swift build
+
+      - name: Build (release)
+        run: swift build -c release
+
+      # CI 模式：不嵌入 PBS 运行时、不签名、跳过发布泄漏门禁（runner 路径/用户名），
+      # 只验证 bundle 拼装结构（TASK-182）。公开快照若不含 DictatelyTests，
+      # 下一步测试自动跳过；私有 CI/本地仍跑全量。
+      - name: Bundle assembly (CI mode)
+        run: DICTATELY_CI=1 ./scripts/build.sh Debug
+
+      - name: Tests (when test target is present)
+        run: |
+          if [ -d DictatelyTests ]; then
+            swift test
+          else
+            echo "DictatelyTests not in this snapshot — skipped"
+          fi

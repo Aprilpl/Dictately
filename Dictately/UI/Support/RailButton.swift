@@ -26,6 +26,9 @@ struct SlotSeal: View {
                 RoundedRectangle(cornerRadius: 9)
                     .strokeBorder(Theme.softBlueTintBorder, lineWidth: 1))
             .help(String(localized: "models.inuse"))
+            // 状态图章不是按钮，但「当前使用」是有意义的状态：读屏需能读出（TASK-177）。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "models.inuse"))
     }
 }
 
@@ -41,6 +44,8 @@ struct KeyBadge: View {
             .background(Circle().fill(ok ? Theme.fillSoft : Theme.orangeTintBg))
             .overlay(Circle().strokeBorder(ok ? Theme.line : Theme.orangeTintBorder, lineWidth: 1))
             .help(String(localized: ok ? "models.provider.keyOk" : "models.provider.needKey"))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: ok ? "models.provider.keyOk" : "models.provider.needKey"))
     }
 }
 
@@ -77,6 +82,8 @@ struct RailButton: View {
         .opacity(disabled ? 0.4 : 1)
         .disabled(disabled)
         .help(helpText)
+        // 纯图标钮：tooltip 文案同时作为 VoiceOver 名称（TASK-177）。
+        .accessibilityLabel(helpText)
     }
 
     private var iconColor: Color {

@@ -104,6 +104,9 @@ struct IconButton: View {
     enum Variant { case ghost, blue, danger }
 
     let icon: String
+    /// 可访问性名称（必填）：纯图标按钮对 VoiceOver 只是「按钮」，没有 label
+    /// 就无法使用——调用点必须传与 `.help` 同义的本地化文案（TASK-177）。
+    let label: String
     var variant: IconButton.Variant = .ghost
     var wide = false
     var action: () -> Void
@@ -139,5 +142,6 @@ struct IconButton: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .opacity(isEnabled ? 1 : 0.45)
+        .accessibilityLabel(label)
     }
 }

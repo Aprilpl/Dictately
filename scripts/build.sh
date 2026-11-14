@@ -7,6 +7,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG="$(echo "${1:-Debug}" | tr '[:upper:]' '[:lower:]')"
 APP="build/Dictately.app"
+# CI 模式（TASK-182）：GitHub runner 无签名身份、路径含 runner 用户名——
+# 只验证「能构建 + bundle 结构完整」，跳过 PBS 嵌入/泄漏门禁/codesign。
+CI_MODE="${DICTATELY_CI:-0}"
+# hardened runtime 回滚开关（TASK-183）：签名/兼容异常时可一键退回。
+NO_HARDENED="${DICTATELY_NO_HARDENED:-0}"
 
 echo "→ swift build -c ${CONFIG}"
 swift build -c "${CONFIG}"
@@ -18,13 +23,8 @@ mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/Resources"
 cp "${BIN_DIR}/Dictately" "${APP}/Contents/MacOS/Dictately"
 cp Dictately/Info.plist "${APP}/Contents/Info.plist"
 
-# 构建机路径脱敏（TASK-162）：Swift `#filePath` 字面量会把 $PWD 绝对路径（含用户名
-# 与目录结构）编译进二进制——实测 GRDB 的运行时错误路径参数在 Release 主二进制留有
-# 31 处（`-file-prefix-map` 只重映射 debug info、对此字面量无效，已实验排除）。codesign
-# 前做**等长**字节替换（等长 = 不改任何 Mach-O 偏移，二进制安全；GRDB 仅将其用作错误
-# 信息展示，功能零影响）。只处理自家构建产物主二进制；Sparkle/PBS 为官方预编译产物。
-PWD_PAD="$(printf '/%*s' $((${#PWD}-1)) '' | tr ' ' '#')"
-LC_ALL=C perl -pi -e "s|\Q${PWD}\E|${PWD_PAD}|g" "${APP}/Contents/MacOS/Dictately"
+# 构建机路径脱敏（TASK-162；TASK-192 抽为可单测独立脚本：等长替换 + md5/大小校验）
+scripts/redact-build-paths.sh "${PWD}" "${APP}/Contents/MacOS/Dictately"
 
 # 资源白名单散拷（TASK-161 双份收敛）：Resources/ 全量已经 SPM .process 进
 # Dictately_Dictately.bundle（代码一律 AppResources.bundle 取——Phosphor 字体/
@@ -36,6 +36,11 @@ LC_ALL=C perl -pi -e "s|\Q${PWD}\E|${PWD_PAD}|g" "${APP}/Contents/MacOS/Dictatel
 for res in AppIcon.icns Localizable.strings; do
   [ -e "Dictately/Resources/${res}" ] && cp "Dictately/Resources/${res}" "${APP}/Contents/Resources/"
 done
+# 隐私清单（TASK-183）：Apple 要求放主 bundle 的 Contents/Resources 根（SPM bundle
+# 内那份不算），存在即拷；缺失不硬失败（非 App Store 分发不作强制，但应保持存在）。
+if [ -f Dictately/Resources/PrivacyInfo.xcprivacy ]; then
+  cp Dictately/Resources/PrivacyInfo.xcprivacy "${APP}/Contents/Resources/PrivacyInfo.xcprivacy"
+fi
 
 # SPM 资源 bundle（AppResources.bundle 运行时按此查找；Localizable.strings process 产物）。
 # 只落位 Contents/Resources：.app 根目录放 bundle（目录或符号链接）都会被 codesign 以
@@ -64,37 +69,36 @@ if ! grep -q "path @loader_path/../Frameworks" <<<"${RPATH_LIST}"; then
   install_name_tool -add_rpath "@loader_path/../Frameworks" "${APP}/Contents/MacOS/Dictately"
 fi
 
-# 本地转写运行时（TASK-134）：python-build-standalone（PBS）打包进 .app——
-# 用户裁决（2026-10-11）：中国用户全程不碰 GitHub，运行时随安装包分发；
-# 用户机首次用本地模型只需 pip 装 mlx-audio（PyPI，失败自动切清华镜像）。
-# 钉版本 + sha256；缓存 build/assets/（gitignore），已缓存即离线可构建。
-PBS_TAG="20261009"
-PBS_VER="3.13.16"
-PBS_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PBS_VER}%2B${PBS_TAG}-aarch64-apple-darwin-install_only.tar.gz"
-PBS_SHA256="3338fcd572a670ec45ac9ef75480b95595ea9b6b5dd320952fcf5df185089941"
-PBS_ARCHIVE="build/assets/pbs-cpython-${PBS_VER}.tar.gz"
-mkdir -p build/assets
-if [ ! -f "${PBS_ARCHIVE}" ] || [ "$(shasum -a 256 "${PBS_ARCHIVE}" | cut -d' ' -f1)" != "${PBS_SHA256}" ]; then
-  echo "→ 下载 PBS Python ${PBS_VER}（${PBS_TAG}，约 25MB）"
-  curl -fsSL -o "${PBS_ARCHIVE}" "${PBS_URL}"
-  ACTUAL_SHA="$(shasum -a 256 "${PBS_ARCHIVE}" | cut -d' ' -f1)"
-  [ "${ACTUAL_SHA}" = "${PBS_SHA256}" ] || { echo "✗ PBS 校验失败：${ACTUAL_SHA}"; exit 1; }
+if [ "${CI_MODE}" = "1" ]; then
+  echo "→ CI：跳过 PBS 运行时嵌入（构建验证模式）"
+else
+  # 本地转写运行时（TASK-134）：python-build-standalone（PBS）打包进 .app——
+  # 用户裁决（2026-10-11）：中国用户全程不碰 GitHub，运行时随安装包分发；
+  # 用户机首次用本地模型只需 pip 装 mlx-audio（PyPI，失败自动切清华镜像）。
+  # 钉版本 + sha256；缓存 build/assets/（gitignore），已缓存即离线可构建。
+  PBS_TAG="20261009"
+  PBS_VER="3.13.16"
+  PBS_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PBS_VER}%2B${PBS_TAG}-aarch64-apple-darwin-install_only.tar.gz"
+  PBS_SHA256="3338fcd572a670ec45ac9ef75480b95595ea9b6b5dd320952fcf5df185089941"
+  PBS_ARCHIVE="build/assets/pbs-cpython-${PBS_VER}.tar.gz"
+  mkdir -p build/assets
+  if [ ! -f "${PBS_ARCHIVE}" ] || [ "$(shasum -a 256 "${PBS_ARCHIVE}" | cut -d' ' -f1)" != "${PBS_SHA256}" ]; then
+    echo "→ 下载 PBS Python ${PBS_VER}（${PBS_TAG}，约 25MB）"
+    curl -fsSL -o "${PBS_ARCHIVE}" "${PBS_URL}"
+    ACTUAL_SHA="$(shasum -a 256 "${PBS_ARCHIVE}" | cut -d' ' -f1)"
+    [ "${ACTUAL_SHA}" = "${PBS_SHA256}" ] || { echo "✗ PBS 校验失败：${ACTUAL_SHA}"; exit 1; }
+  fi
+  # tar 内顶层为 python/ → 解到 Contents/Resources/Runtime/python（LocalRuntimeManager 定位处）
+  mkdir -p "${APP}/Contents/Resources/Runtime"
+  tar -xzf "${PBS_ARCHIVE}" -C "${APP}/Contents/Resources/Runtime"
+  [ -x "${APP}/Contents/Resources/Runtime/python/bin/python3" ] || { echo "✗ PBS 解压异常：Runtime/python/bin/python3 不存在"; exit 1; }
+  echo "→ PBS Python 已打入（Runtime/python，本地转写运行时）"
 fi
-# tar 内顶层为 python/ → 解到 Contents/Resources/Runtime/python（LocalRuntimeManager 定位处）
-mkdir -p "${APP}/Contents/Resources/Runtime"
-tar -xzf "${PBS_ARCHIVE}" -C "${APP}/Contents/Resources/Runtime"
-[ -x "${APP}/Contents/Resources/Runtime/python/bin/python3" ] || { echo "✗ PBS 解压异常：Runtime/python/bin/python3 不存在"; exit 1; }
-echo "→ PBS Python 已打入（Runtime/python，本地转写运行时）"
 
-# 发布泄漏门禁（TASK-162，随路径脱敏配套）：全部文件落位后、签名前，对整个 .app
-# 递归扫描构建机身份串（$PWD 含用户名与目录结构、$USER 兜底裸用户名）——任何文件
-# 携带即硬失败。个人信息零外泄由结构保证，不靠人工记得。PBS Python 运行时自带
-# CPython 开发者公开邮箱属官方产物内容，不在本门禁的 $PWD/$USER 特征面内。
-if grep -raq -F "${PWD}" -- "${APP}"; then
-  echo "✗ 泄漏门禁：${APP} 内仍有文件包含构建机路径 ${PWD}——检查资源/嵌套产物"; exit 1
-fi
-if [ -n "${USER:-}" ] && grep -raq -F "${USER}" -- "${APP}"; then
-  echo "✗ 泄漏门禁：${APP} 内仍有文件包含构建机用户名 ${USER}"; exit 1
+if [ "${CI_MODE}" = "1" ]; then
+  echo "→ CI：跳过发布泄漏门禁（runner 路径/用户名非发布产物）"
+else
+  scripts/verify-bundle.sh "${APP}" "${PWD}"
 fi
 
 # 签名：优先稳定身份（Dictately Dev 自签名证书——TCC 类授权跨编译有效；
@@ -104,6 +108,9 @@ fi
 # Sparkle（TASK-148）：嵌套代码自底向上逐个签名（XPC → Updater.app → framework → app）；
 # SPM 分发的 framework 自带 adhoc 签名，--force 覆签为本地身份。
 SPARKLE_XPC="${APP}/Contents/Frameworks/Sparkle.framework/XPCServices"
+if [ "${CI_MODE}" = "1" ]; then
+  echo "→ CI：跳过 codesign（未签名产物仅用于构建验证）"
+else
 SIGN_IDENTITY="-"
 if codesign --sign "Dictately Dev" --force --timestamp=none "${SPARKLE_XPC}/Installer.xpc" 2>/dev/null; then
   SIGN_IDENTITY="Dictately Dev"
@@ -111,12 +118,26 @@ if codesign --sign "Dictately Dev" --force --timestamp=none "${SPARKLE_XPC}/Inst
 else
   echo "⚠ codesign 回退 ad-hoc：钥匙串无「Dictately Dev」证书——TCC 授权（辅助功能/麦克风）将随每次重建失效、用户每次启动都要重新授权！重建证书配方见 AGENTS.md §30 追记（2026-10-10 实案：证书丢失后静默回退未被察觉，用户每次启动重新授权辅助功能）"
 fi
-SIGN_ARGS=(--sign "${SIGN_IDENTITY}" --force --timestamp=none)
+# 硬化运行时（TASK-183）：嵌套代码同样带 runtime（自底向上签名）；应用本体加载
+# Sparkle 与系统框架均同签名域，实测无需 disable-library-validation 等 entitlements。
+# 回滚：DICTATELY_NO_HARDENED=1 ./scripts/build.sh Debug
+if [ "${NO_HARDENED}" = "1" ]; then
+  SIGN_ARGS=(--sign "${SIGN_IDENTITY}" --force --timestamp=none)
+  echo "→ hardened runtime 已按开关关闭（DICTATELY_NO_HARDENED=1）"
+else
+  SIGN_ARGS=(--sign "${SIGN_IDENTITY}" --force --timestamp=none --options runtime)
+  echo "→ hardened runtime 已启用"
+fi
+APP_SIGN_ARGS=("${SIGN_ARGS[@]}")
+if [ "${NO_HARDENED}" != "1" ] && [ -f scripts/Dictately.entitlements ]; then
+  APP_SIGN_ARGS+=(--entitlements scripts/Dictately.entitlements)
+fi
 codesign "${SIGN_ARGS[@]}" "${SPARKLE_XPC}/Installer.xpc"
 codesign "${SIGN_ARGS[@]}" "${SPARKLE_XPC}/Downloader.xpc"
 codesign "${SIGN_ARGS[@]}" "${APP}/Contents/Frameworks/Sparkle.framework/Updater.app"
 codesign "${SIGN_ARGS[@]}" "${APP}/Contents/Frameworks/Sparkle.framework"
-codesign "${SIGN_ARGS[@]}" "${APP}"
+codesign "${APP_SIGN_ARGS[@]}" "${APP}"
+fi
 
 echo "✓ 构建完成：${APP}"
 echo "  运行：open ${APP}   （开发期裸跑：${BIN_DIR}/Dictately）"
